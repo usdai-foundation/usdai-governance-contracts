@@ -13,6 +13,7 @@ import {
 import {
     ERC20VotesUpgradeable
 } from "openzeppelin-contracts-upgradeable/contracts/token/ERC20/extensions/ERC20VotesUpgradeable.sol";
+import {VotesUpgradeable} from "openzeppelin-contracts-upgradeable/contracts/governance/utils/VotesUpgradeable.sol";
 import {
     AccessControlUpgradeable
 } from "openzeppelin-contracts-upgradeable/contracts/access/AccessControlUpgradeable.sol";
@@ -42,6 +43,11 @@ contract Chip is
      * @notice Implementation version
      */
     string public constant IMPLEMENTATION_VERSION = "1.0";
+
+    /**
+     * @notice Revoke delegate admin role
+     */
+    bytes32 public constant REVOKE_DELEGATE_ADMIN_ROLE = keccak256("REVOKE_DELEGATE_ADMIN_ROLE");
 
     /**
      * @notice Minter role
@@ -197,6 +203,23 @@ contract Chip is
     }
 
     /*------------------------------------------------------------------------*/
+    /* VotesUpgradeable Overrides                                             */
+    /*------------------------------------------------------------------------*/
+
+    /**
+     * @inheritdoc VotesUpgradeable
+     */
+    function _delegate(
+        address account,
+        address delegatee
+    ) internal override(VotesUpgradeable) {
+        _isBlacklisted(account);
+        _isBlacklisted(delegatee);
+
+        super._delegate(account, delegatee);
+    }
+
+    /*------------------------------------------------------------------------*/
     /* Minter API                                                             */
     /*------------------------------------------------------------------------*/
 
@@ -224,6 +247,25 @@ contract Chip is
 
         /* Update bridged supply */
         _getSupplyStorage().bridged += amount;
+    }
+
+    /*------------------------------------------------------------------------*/
+    /* Permissioned API                                                       */
+    /*------------------------------------------------------------------------*/
+
+    /**
+     * @inheritdoc IChip
+     */
+    function revokeDelegate(
+        address account
+    ) external onlyRole(REVOKE_DELEGATE_ADMIN_ROLE) {
+        /* Check if account is blacklisted */
+        if (!isBlacklisted(account)) {
+            revert InvalidAddress();
+        }
+
+        /* Revoke delegate */
+        super._delegate(account, address(0));
     }
 
     /*------------------------------------------------------------------------*/

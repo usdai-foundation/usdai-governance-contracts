@@ -66,4 +66,16 @@ interface IChip is IERC20, IMintableBurnable {
      * @return Amount of tokens bridged to other chains
      */
     function bridgedSupply() external view returns (uint256);
+
+    /*------------------------------------------------------------------------*/
+    /* Permissioned API                                                       */
+    /*------------------------------------------------------------------------*/
+
+    /**
+     * @notice Revoke delegate
+     * @param account Delegatee address to revoke
+     */
+    function revokeDelegate(
+        address account
+    ) external;
 }
