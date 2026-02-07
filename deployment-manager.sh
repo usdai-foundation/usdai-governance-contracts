@@ -4,6 +4,7 @@ set -e
 
 declare -A SCRIPTS=(
     ["deploy"]="script/Deploy.s.sol:Deploy"
+    ["deploy-production-environment"]="script/DeployProductionEnvironment.s.sol:DeployProductionEnvironment"
     ["show"]="script/Show.s.sol:Show"
 )
 
@@ -12,6 +13,7 @@ usage() {
     echo ""
     echo "Commands:"
     echo "  deploy <usdai> <treasury>"
+    echo "  deploy-production-environment <deployer> <treasury> <admin>"
     echo ""
     echo "  show"
 }

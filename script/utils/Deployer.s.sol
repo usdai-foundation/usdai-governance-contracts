@@ -14,6 +14,8 @@ contract Deployer is BaseScript {
 
     error MissingDependency();
 
+    error InvalidParameter();
+
     /*--------------------------------------------------------------------------*/
     /* Structures                                                               */
     /*--------------------------------------------------------------------------*/
