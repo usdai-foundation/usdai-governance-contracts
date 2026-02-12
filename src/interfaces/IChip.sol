@@ -35,7 +35,7 @@ interface IChip is IERC20, IMintableBurnable {
     /*------------------------------------------------------------------------*/
 
     /**
-     * @custom:storage-location erc7201:Chip.supply
+     * @custom:storage-location erc7201:chip.supply
      */
     struct Supply {
         uint256 bridged;
