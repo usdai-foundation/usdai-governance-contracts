@@ -56,10 +56,10 @@ contract Chip is
 
     /**
      * @notice Supply storage location
-     * @dev keccak256(abi.encode(uint256(keccak256("Chip.supply")) - 1)) & ~bytes32(uint256(0xff));
+     * @dev keccak256(abi.encode(uint256(keccak256("chip.supply")) - 1)) & ~bytes32(uint256(0xff));
      */
     bytes32 internal constant SUPPLY_STORAGE_LOCATION =
-        0x25e3ea3bbcfa85dc079d44d06a216d667f5646f959266c4577b71f193d2cc900;
+        0x88399c6b17428f2fe1607b6829207459421f84a0dfa0548614e1da845ea59300;
 
     /*------------------------------------------------------------------------*/
     /* Immutables                                                             */
