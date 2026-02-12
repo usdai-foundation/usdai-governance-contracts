@@ -42,14 +42,17 @@ abstract contract BaseTest is Test {
     }
 
     function deployChip() internal {
-        vm.startPrank(users.deployer);
+        // Create a separate proxy admin address
+        address proxyAdminAddr = makeAddr("proxyAdmin");
+
+        vm.startPrank(proxyAdminAddr);
 
         // Deploy mock USDai for blacklist reference
         mockUsdai = new MockUSDai();
 
         Chip chipImpl = new Chip(address(mockUsdai));
         bytes memory initData = abi.encodeWithSelector(Chip.initialize.selector, 10000 ether, users.deployer);
-        TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(address(chipImpl), users.deployer, initData);
+        TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(address(chipImpl), proxyAdminAddr, initData);
         chip = Chip(address(proxy));
         proxyAdmin = address(
             uint160(
@@ -59,6 +62,18 @@ abstract contract BaseTest is Test {
             )
         );
 
+        vm.stopPrank();
+
+        // Transfer ProxyAdmin ownership to deployer so they can upgrade
+        vm.prank(proxyAdminAddr);
+        (bool success,) = proxyAdmin.call(abi.encodeWithSignature("transferOwnership(address)", users.deployer));
+        require(success, "Failed to transfer ProxyAdmin ownership");
+
+        // Grant TRANSFER_ADMIN_ROLE to all test users (from the contract admin, not proxy admin)
+        vm.startPrank(users.deployer);
+        chip.grantRole(chip.TRANSFER_ADMIN_ROLE(), users.deployer);
+        chip.grantRole(chip.TRANSFER_ADMIN_ROLE(), users.user1);
+        chip.grantRole(chip.TRANSFER_ADMIN_ROLE(), users.user2);
         vm.stopPrank();
     }
 
