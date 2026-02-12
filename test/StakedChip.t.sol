@@ -51,8 +51,10 @@ contract StakedChipTest is Test {
         user1 = makeAddr("user1");
         user2 = makeAddr("user2");
 
+        address proxyAdmin = makeAddr("proxyAdmin");
+
         // Deploy and initialize mock USDai
-        vm.startPrank(admin);
+        vm.startPrank(proxyAdmin);
         MockUSDai mockUsdaiImpl = new MockUSDai();
         bytes memory usdaiInitData = abi.encodeWithSelector(MockUSDai.initialize.selector);
         mockUsdai = MockUSDai(address(new ERC1967Proxy(address(mockUsdaiImpl), usdaiInitData)));
@@ -60,7 +62,7 @@ contract StakedChipTest is Test {
         // Deploy Chip
         Chip chipImpl = new Chip(address(mockUsdai));
         bytes memory chipInitData = abi.encodeWithSelector(Chip.initialize.selector, INITIAL_CHIP_SUPPLY, admin);
-        TransparentUpgradeableProxy chipProxy = new TransparentUpgradeableProxy(address(chipImpl), admin, chipInitData);
+        TransparentUpgradeableProxy chipProxy = new TransparentUpgradeableProxy(address(chipImpl), proxyAdmin, chipInitData);
         chip = Chip(address(chipProxy));
         chipProxyAdmin = address(
             uint160(
@@ -76,7 +78,7 @@ contract StakedChipTest is Test {
         StakedChip stakedChipImpl = new StakedChip(address(mockUsdai), address(chip));
         bytes memory stakedChipInitData = abi.encodeWithSelector(StakedChip.initialize.selector, admin);
         TransparentUpgradeableProxy stakedChipProxy =
-            new TransparentUpgradeableProxy(address(stakedChipImpl), admin, stakedChipInitData);
+            new TransparentUpgradeableProxy(address(stakedChipImpl), proxyAdmin, stakedChipInitData);
         stakedChip = StakedChip(address(stakedChipProxy));
         stakedChipProxyAdmin = address(
             uint160(
@@ -89,7 +91,23 @@ contract StakedChipTest is Test {
             )
         );
 
-        // Transfer some CHIP to test users
+        // Grant admin role on mockUsdai for blacklist tests
+        mockUsdai.grantRole(mockUsdai.DEFAULT_ADMIN_ROLE(), admin);
+
+        // Transfer ownership of ProxyAdmins to admin for upgrade tests
+        (bool success1,) = chipProxyAdmin.call(abi.encodeWithSignature("transferOwnership(address)", admin));
+        require(success1, "Failed to transfer chip ProxyAdmin ownership");
+        (bool success2,) = stakedChipProxyAdmin.call(abi.encodeWithSignature("transferOwnership(address)", admin));
+        require(success2, "Failed to transfer stakedChip ProxyAdmin ownership");
+
+        vm.stopPrank();
+
+        // Grant TRANSFER_ADMIN_ROLE to admin, users, and StakedChip contract
+        vm.startPrank(admin);
+        chip.grantRole(chip.TRANSFER_ADMIN_ROLE(), admin);
+        chip.grantRole(chip.TRANSFER_ADMIN_ROLE(), user1);
+        chip.grantRole(chip.TRANSFER_ADMIN_ROLE(), user2);
+        chip.grantRole(chip.TRANSFER_ADMIN_ROLE(), address(stakedChip));
         assertTrue(chip.transfer(user1, 1000 ether));
         assertTrue(chip.transfer(user2, 1000 ether));
         vm.stopPrank();

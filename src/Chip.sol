@@ -55,6 +55,11 @@ contract Chip is
     bytes32 public constant BRIDGE_ADMIN_ROLE = keccak256("BRIDGE_ADMIN_ROLE");
 
     /**
+     * @notice Transfer admin role
+     */
+    bytes32 public constant TRANSFER_ADMIN_ROLE = keccak256("TRANSFER_ADMIN_ROLE");
+
+    /**
      * @notice Supply storage location
      * @dev keccak256(abi.encode(uint256(keccak256("chip.supply")) - 1)) & ~bytes32(uint256(0xff));
      */
@@ -195,6 +200,9 @@ contract Chip is
         address to,
         uint256 value
     ) internal override(ERC20Upgradeable, ERC20VotesUpgradeable) {
+        /* Check if transfer is allowed */
+        require(totalSupply() == 0 || hasRole(TRANSFER_ADMIN_ROLE, msg.sender), "Transfer not allowed");
+
         _isBlacklisted(msg.sender);
         _isBlacklisted(from);
         _isBlacklisted(to);

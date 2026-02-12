@@ -57,7 +57,11 @@ contract StakedChipBridgeTest is Test {
         bytes memory stakedChipInitData = abi.encodeWithSelector(StakedChip.initialize.selector, admin);
         stakedChip = StakedChip(address(new ERC1967Proxy(address(stakedChipImpl), stakedChipInitData)));
 
-        // Grant bridge admin role
+        // Grant roles
+        chip.grantRole(chip.TRANSFER_ADMIN_ROLE(), admin);
+        chip.grantRole(chip.TRANSFER_ADMIN_ROLE(), user1);
+        chip.grantRole(chip.TRANSFER_ADMIN_ROLE(), user2);
+        chip.grantRole(chip.TRANSFER_ADMIN_ROLE(), address(stakedChip));
         stakedChip.grantRole(BRIDGE_ADMIN_ROLE, bridgeAdmin);
 
         // Transfer CHIP to test users

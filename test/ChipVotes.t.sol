@@ -47,7 +47,8 @@ contract ChipVotesTest is Test {
         user2 = makeAddr("user2");
         user3 = makeAddr("user3");
 
-        vm.startPrank(admin);
+        address proxyAdmin = makeAddr("proxyAdmin");
+        vm.startPrank(proxyAdmin);
 
         // Deploy mock USDai
         MockUSDai mockUsdaiImpl = new MockUSDai();
@@ -57,14 +58,23 @@ contract ChipVotesTest is Test {
         // Deploy Chip
         Chip chipImpl = new Chip(address(mockUsdai));
         bytes memory chipInitData = abi.encodeWithSelector(Chip.initialize.selector, INITIAL_SUPPLY, admin);
-        TransparentUpgradeableProxy chipProxy = new TransparentUpgradeableProxy(address(chipImpl), admin, chipInitData);
+        TransparentUpgradeableProxy chipProxy = new TransparentUpgradeableProxy(address(chipImpl), proxyAdmin, chipInitData);
         chip = Chip(address(chipProxy));
 
-        // Transfer tokens to test users
+        // Grant admin role on mockUsdai for blacklist tests
+        mockUsdai.grantRole(mockUsdai.DEFAULT_ADMIN_ROLE(), admin);
+
+        vm.stopPrank();
+
+        // Grant TRANSFER_ADMIN_ROLE and transfer tokens to test users
+        vm.startPrank(admin);
+        chip.grantRole(chip.TRANSFER_ADMIN_ROLE(), admin);
+        chip.grantRole(chip.TRANSFER_ADMIN_ROLE(), user1);
+        chip.grantRole(chip.TRANSFER_ADMIN_ROLE(), user2);
+        chip.grantRole(chip.TRANSFER_ADMIN_ROLE(), user3);
         chip.transfer(user1, 1000 ether);
         chip.transfer(user2, 1000 ether);
         chip.transfer(user3, 500 ether);
-
         vm.stopPrank();
     }
 
