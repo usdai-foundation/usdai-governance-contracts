@@ -49,12 +49,12 @@ contract StakedChipBridgeTest is Test {
         // Deploy Chip
         vm.startPrank(admin);
         Chip chipImpl = new Chip(address(mockUsdai));
-        bytes memory chipInitData = abi.encodeWithSelector(Chip.initialize.selector, 10000 ether, admin);
+        bytes memory chipInitData = abi.encodeWithSelector(Chip.initialize.selector, 10000 ether, admin, admin);
         chip = Chip(address(new ERC1967Proxy(address(chipImpl), chipInitData)));
 
         // Deploy StakedChip
         StakedChip stakedChipImpl = new StakedChip(address(mockUsdai), address(chip));
-        bytes memory stakedChipInitData = abi.encodeWithSelector(StakedChip.initialize.selector, admin);
+        bytes memory stakedChipInitData = abi.encodeWithSelector(StakedChip.initialize.selector, admin, admin);
         stakedChip = StakedChip(address(new ERC1967Proxy(address(stakedChipImpl), stakedChipInitData)));
 
         // Grant roles
