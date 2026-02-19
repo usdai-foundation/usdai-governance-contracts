@@ -51,7 +51,8 @@ abstract contract BaseTest is Test {
         mockUsdai = new MockUSDai();
 
         Chip chipImpl = new Chip(address(mockUsdai));
-        bytes memory initData = abi.encodeWithSelector(Chip.initialize.selector, 10000 ether, users.deployer);
+        bytes memory initData =
+            abi.encodeWithSelector(Chip.initialize.selector, 10000 ether, users.deployer, users.deployer);
         TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(address(chipImpl), proxyAdminAddr, initData);
         chip = Chip(address(proxy));
         proxyAdmin = address(

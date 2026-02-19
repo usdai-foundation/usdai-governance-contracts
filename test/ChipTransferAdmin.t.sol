@@ -57,8 +57,9 @@ contract ChipTransferAdminTest is Test {
 
         // Deploy Chip with proxyAdmin as the proxy admin and admin as the contract admin
         Chip chipImpl = new Chip(address(mockUsdai));
-        bytes memory chipInitData = abi.encodeWithSelector(Chip.initialize.selector, INITIAL_SUPPLY, admin);
-        TransparentUpgradeableProxy chipProxy = new TransparentUpgradeableProxy(address(chipImpl), proxyAdmin, chipInitData);
+        bytes memory chipInitData = abi.encodeWithSelector(Chip.initialize.selector, INITIAL_SUPPLY, admin, admin);
+        TransparentUpgradeableProxy chipProxy =
+            new TransparentUpgradeableProxy(address(chipImpl), proxyAdmin, chipInitData);
         chip = Chip(address(chipProxy));
 
         vm.stopPrank();
