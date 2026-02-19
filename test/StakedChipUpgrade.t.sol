@@ -51,8 +51,9 @@ contract StakedChipUpgradeTest is Test {
         // Deploy Chip
         vm.startPrank(proxyAdmin);
         Chip chipImpl = new Chip(address(mockUsdai));
-        bytes memory chipInitData = abi.encodeWithSelector(Chip.initialize.selector, 10000 ether, admin);
-        TransparentUpgradeableProxy chipProxy = new TransparentUpgradeableProxy(address(chipImpl), proxyAdmin, chipInitData);
+        bytes memory chipInitData = abi.encodeWithSelector(Chip.initialize.selector, 10000 ether, admin, admin);
+        TransparentUpgradeableProxy chipProxy =
+            new TransparentUpgradeableProxy(address(chipImpl), proxyAdmin, chipInitData);
         chip = Chip(address(chipProxy));
         chipProxyAdmin = address(
             uint160(

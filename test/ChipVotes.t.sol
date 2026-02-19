@@ -57,8 +57,9 @@ contract ChipVotesTest is Test {
 
         // Deploy Chip
         Chip chipImpl = new Chip(address(mockUsdai));
-        bytes memory chipInitData = abi.encodeWithSelector(Chip.initialize.selector, INITIAL_SUPPLY, admin);
-        TransparentUpgradeableProxy chipProxy = new TransparentUpgradeableProxy(address(chipImpl), proxyAdmin, chipInitData);
+        bytes memory chipInitData = abi.encodeWithSelector(Chip.initialize.selector, INITIAL_SUPPLY, admin, admin);
+        TransparentUpgradeableProxy chipProxy =
+            new TransparentUpgradeableProxy(address(chipImpl), proxyAdmin, chipInitData);
         chip = Chip(address(chipProxy));
 
         // Grant admin role on mockUsdai for blacklist tests
