@@ -14,6 +14,7 @@ usage() {
     echo "Commands:"
     echo "  deploy <usdai> <treasury>"
     echo "  deploy-production-environment <deployer> <treasury> <admin>"
+    echo "  deploy-omnichain-environment <deployer> <lz endpoint> <admin>"
     echo ""
     echo "  show"
 }
