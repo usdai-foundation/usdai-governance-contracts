@@ -25,6 +25,10 @@ contract Deployer is BaseScript {
         address governor;
         address timelock;
         address stakedChip;
+        address oTokenChip;
+        address oTokenStakedChip;
+        address oAdapterChip;
+        address oAdapterStakedChip;
     }
 
     /*--------------------------------------------------------------------------*/
