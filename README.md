@@ -3,7 +3,7 @@
 ### Clone
 
 ```shell
-$ git clone --recursive https://github.com/metastreet-labs/usdai-governance-cotracts.git
+$ git clone --recursive https://github.com/usdai-foundation/usdai-governance-contracts.git
 ```
 
 ### Build
