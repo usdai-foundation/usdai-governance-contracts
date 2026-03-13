@@ -196,7 +196,6 @@ contract StakedChip is
      * @return $ Reference to supply storage
      */
     function _getSupplyStorage() internal pure returns (Supply storage $) {
-        /* keccak256(abi.encode(uint256(keccak256("StakedChip.supply")) - 1)) & ~bytes32(uint256(0xff)) */
         assembly {
             $.slot := SUPPLY_STORAGE_LOCATION
         }
@@ -208,7 +207,6 @@ contract StakedChip is
      * @return $ Reference to deposits storage
      */
     function _getDepositsStorage() internal pure returns (Deposits storage $) {
-        /* keccak256(abi.encode(uint256(keccak256("StakedChip.deposits")) - 1)) & ~bytes32(uint256(0xff)) */
         assembly {
             $.slot := DEPOSITS_STORAGE_LOCATION
         }
