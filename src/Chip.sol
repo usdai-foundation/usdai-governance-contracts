@@ -2,6 +2,9 @@
 pragma solidity 0.8.33;
 
 import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import {IERC5267} from "openzeppelin-contracts/contracts/interfaces/IERC5267.sol";
+import {IERC20Permit} from "openzeppelin-contracts/contracts/token/ERC20/extensions/IERC20Permit.sol";
+import {IVotes} from "openzeppelin-contracts/contracts/governance/utils/IVotes.sol";
 import {
     ERC165Upgradeable
 } from "openzeppelin-contracts-upgradeable/contracts/utils/introspection/ERC165Upgradeable.sol";
@@ -290,6 +293,8 @@ contract Chip is
         bytes4 interfaceId
     ) public view virtual override(AccessControlUpgradeable, ERC165Upgradeable) returns (bool) {
         return interfaceId == type(IERC20).interfaceId || interfaceId == type(IChip).interfaceId
-            || interfaceId == type(IMintableBurnable).interfaceId || super.supportsInterface(interfaceId);
+            || interfaceId == type(IMintableBurnable).interfaceId || interfaceId == type(IVotes).interfaceId
+            || interfaceId == type(IERC20Permit).interfaceId || interfaceId == type(IERC5267).interfaceId
+            || super.supportsInterface(interfaceId);
     }
 }
