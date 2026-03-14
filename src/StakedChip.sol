@@ -306,7 +306,7 @@ contract StakedChip is
      * @notice Mint locked shares
      */
     function _mintLockedShares() internal {
-        if (totalSupply() < LOCKED_SHARES) _mint(address(0xdead), LOCKED_SHARES);
+        if (totalShares() == 0) _mint(address(0xdead), LOCKED_SHARES);
     }
 
     /**
@@ -357,13 +357,14 @@ contract StakedChip is
      */
     function _convertToShares(
         uint256 assets,
-        Math.Rounding
+        Math.Rounding rounding
     ) internal view override returns (uint256) {
-        /* Check if initial deposit */
-        bool initialDeposit = totalSupply() < LOCKED_SHARES;
+        uint256 _totalShares = totalShares();
 
-        /* Compute shares. If initial deposit, remove locked shares */
-        return ((assets * FIXED_POINT_SCALE) / _sharePrice()) - (initialDeposit ? LOCKED_SHARES : 0);
+        /* If no shares exist, compute initial deposit shares (subtract locked shares) */
+        if (_totalShares == 0) return assets - LOCKED_SHARES;
+
+        return Math.mulDiv(assets, _totalShares, _depositBalance(), rounding);
     }
 
     /**
@@ -371,15 +372,14 @@ contract StakedChip is
      */
     function _convertToAssets(
         uint256 shares,
-        Math.Rounding
+        Math.Rounding rounding
     ) internal view override returns (uint256) {
-        /* Check if initial deposit */
-        bool initialDeposit = totalSupply() < LOCKED_SHARES;
+        uint256 _totalShares = totalShares();
 
-        /* Compute assets. If initial deposit, price locked shares */
-        return
-            ((((initialDeposit ? LOCKED_SHARES : 0) + shares) * _sharePrice()) + FIXED_POINT_SCALE - 1)
-                / FIXED_POINT_SCALE;
+        /* If no shares exist, compute initial deposit assets (add locked shares cost) */
+        if (_totalShares == 0) return LOCKED_SHARES + shares;
+
+        return Math.mulDiv(shares, _depositBalance(), _totalShares, rounding);
     }
 
     /**
@@ -387,6 +387,39 @@ contract StakedChip is
      */
     function totalAssets() public view override(ERC4626Upgradeable, IERC4626) returns (uint256) {
         return _getDepositsStorage().balance;
+    }
+
+    /**
+     * @inheritdoc IERC4626
+     */
+    function maxWithdraw(
+        address owner
+    ) public view override(ERC4626Upgradeable, IERC4626) returns (uint256) {
+        if (totalShares() == 0) return 0;
+
+        return super.maxWithdraw(owner);
+    }
+
+    /**
+     * @inheritdoc IERC4626
+     */
+    function previewRedeem(
+        uint256 shares
+    ) public view override(ERC4626Upgradeable, IERC4626) returns (uint256) {
+        if (totalShares() == 0) return 0;
+
+        return super.previewRedeem(shares);
+    }
+
+    /**
+     * @inheritdoc IERC4626
+     */
+    function previewWithdraw(
+        uint256 assets
+    ) public view override(ERC4626Upgradeable, IERC4626) returns (uint256) {
+        if (totalShares() == 0) return type(uint256).max;
+
+        return super.previewWithdraw(assets);
     }
 
     /**
