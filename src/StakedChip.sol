@@ -385,6 +385,13 @@ contract StakedChip is
     /**
      * @inheritdoc IERC4626
      */
+    function totalAssets() public view override(ERC4626Upgradeable, IERC4626) returns (uint256) {
+        return _getDepositsStorage().balance;
+    }
+
+    /**
+     * @inheritdoc IERC4626
+     */
     function deposit(
         uint256 assets,
         address receiver
