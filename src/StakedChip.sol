@@ -19,6 +19,8 @@ import {
 import {PausableUpgradeable} from "openzeppelin-contracts-upgradeable/contracts/utils/PausableUpgradeable.sol";
 import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import {IERC20Metadata} from "openzeppelin-contracts/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {IERC5267} from "openzeppelin-contracts/contracts/interfaces/IERC5267.sol";
+import {IERC20Permit} from "openzeppelin-contracts/contracts/token/ERC20/extensions/IERC20Permit.sol";
 import {SafeERC20} from "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC4626} from "openzeppelin-contracts/contracts/interfaces/IERC4626.sol";
 import {Math} from "openzeppelin-contracts/contracts/utils/math/Math.sol";
@@ -580,6 +582,7 @@ contract StakedChip is
     ) public view virtual override(AccessControlUpgradeable, ERC165Upgradeable) returns (bool) {
         return interfaceId == type(IERC20).interfaceId || interfaceId == type(IERC4626).interfaceId
             || interfaceId == type(IStakedChip).interfaceId || interfaceId == type(IMintableBurnable).interfaceId
+            || interfaceId == type(IERC20Permit).interfaceId || interfaceId == type(IERC5267).interfaceId
             || super.supportsInterface(interfaceId);
     }
 }
