@@ -2,14 +2,13 @@
 pragma solidity 0.8.33;
 
 import {IERC4626} from "openzeppelin-contracts/contracts/interfaces/IERC4626.sol";
-import {IMintableBurnable} from "./IMintableBurnable.sol";
 
 /**
  * @title IStakedChip
  * @notice Interface for the Staked CHIP (sCHIP) ERC4626 vault
  * @dev Extends ERC4626 with blacklist and bridging capabilities
  */
-interface IStakedChip is IERC4626, IMintableBurnable {
+interface IStakedChip is IERC4626 {
     /*------------------------------------------------------------------------*/
     /* Errors                                                                 */
     /*------------------------------------------------------------------------*/
@@ -54,18 +53,6 @@ interface IStakedChip is IERC4626, IMintableBurnable {
     function isBlacklisted(
         address account
     ) external view returns (bool);
-
-    /**
-     * @notice Get bridged supply (tokens on other chains)
-     * @return Amount of tokens bridged to other chains
-     */
-    function bridgedSupply() external view returns (uint256);
-
-    /**
-     * @notice Get total shares across all chains
-     * @return Total shares including bridged tokens
-     */
-    function totalShares() external view returns (uint256);
 
     /*------------------------------------------------------------------------*/
     /* Pause Admin API                                                        */

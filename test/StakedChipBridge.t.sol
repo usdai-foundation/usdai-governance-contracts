@@ -1,578 +1,580 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.33;
 
-import {Test} from "forge-std/Test.sol";
-import {console} from "forge-std/console.sol";
+import {TestHelperOz5} from "@layerzerolabs/test-devtools-evm-foundry/contracts/TestHelperOz5.sol";
+
+import {OptionsBuilder} from "@layerzerolabs/lz-evm-oapp-v2/contracts/oapp/libs/OptionsBuilder.sol";
+import {SendParam, MessagingFee} from "@layerzerolabs/lz-evm-oapp-v2/contracts/oft/OFTCore.sol";
+import {RateLimiter} from "@layerzerolabs/lz-evm-oapp-v2/contracts/oapp/utils/RateLimiter.sol";
+
+import {
+    TransparentUpgradeableProxy
+} from "openzeppelin-contracts/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {ERC1967Proxy} from "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-
-import {IUSDai} from "usdai-contracts/src/interfaces/IUSDai.sol";
-
-import {MockUSDai} from "./mocks/MockUSDai.sol";
+import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 
 import {Chip} from "../src/Chip.sol";
 import {StakedChip} from "../src/StakedChip.sol";
+import {IStakedChip} from "../src/interfaces/IStakedChip.sol";
+import {OLockAdapter} from "../src/omnichain/OLockAdapter.sol";
+import {OToken} from "../src/omnichain/OToken.sol";
+import {OAdapter} from "../src/omnichain/OAdapter.sol";
+
+import {MockUSDai} from "./mocks/MockUSDai.sol";
 
 /**
  * @title StakedChip Bridge Tests
- * @notice Tests for cross-chain bridging functionality
+ * @notice Tests for cross-chain bridging of sCHIP via OLockAdapter (hub) <-> OAdapter + OToken (spoke)
+ *
+ * @dev Architecture:
+ *   Hub:   StakedChip (ERC4626 vault over CHIP) + OLockAdapter (locks/unlocks sCHIP)
+ *   Spoke: OToken (sCHIP representation) + OAdapter (mints/burns OToken)
+ *
+ * @dev Key difference from ChipBridge: StakedChip has no TRANSFER_ADMIN_ROLE gate, so
+ *   OLockAdapter requires no special role on the StakedChip contract. The underlying CHIP
+ *   remains in the vault throughout bridging — only sCHIP shares move cross-chain.
  */
-contract StakedChipBridgeTest is Test {
+contract StakedChipBridgeTest is TestHelperOz5 {
+    using OptionsBuilder for bytes;
+
     /*------------------------------------------------------------------------*/
-    /* State Variables                                                        */
+    /* Constants                                                              */
     /*------------------------------------------------------------------------*/
 
-    Chip public chip;
-    StakedChip public stakedChip;
-    MockUSDai public mockUsdai;
+    uint256 internal constant CHIP_SUPPLY = 10_000 ether;
+    uint256 internal constant CHIP_PER_USER = 1_000 ether;
+    uint256 internal constant RATE_LIMIT = 500 ether;
 
-    address public admin;
-    address public bridgeAdmin;
-    address public user1;
-    address public user2;
+    /*------------------------------------------------------------------------*/
+    /* Endpoint IDs                                                           */
+    /*------------------------------------------------------------------------*/
 
-    bytes32 public constant BRIDGE_ADMIN_ROLE = keccak256("BRIDGE_ADMIN_ROLE");
-    bytes32 public constant BLACKLIST_ADMIN_ROLE = keccak256("BLACKLIST_ADMIN_ROLE");
+    uint32 internal hubEid = 1;
+    uint32 internal spokeEid = 2;
+
+    /*------------------------------------------------------------------------*/
+    /* Contracts                                                              */
+    /*------------------------------------------------------------------------*/
+
+    MockUSDai internal mockUsdai;
+
+    /* Hub chain */
+    Chip internal chip;
+    StakedChip internal stakedChip;
+    OLockAdapter internal oLockAdapter;
+
+    /* Spoke chain */
+    OToken internal oToken;
+    OAdapter internal oAdapter;
+
+    /*------------------------------------------------------------------------*/
+    /* Actors                                                                 */
+    /*------------------------------------------------------------------------*/
+
+    address internal admin;
+    address internal userHub;
+    address internal userSpoke;
+    address internal blacklisted;
+
+    /*------------------------------------------------------------------------*/
+    /* State                                                                  */
+    /*------------------------------------------------------------------------*/
+
+    /* sCHIP balance of userHub after initial CHIP deposit in setUp */
+    uint256 internal userHubSChip;
 
     /*------------------------------------------------------------------------*/
     /* Setup                                                                  */
     /*------------------------------------------------------------------------*/
 
-    function setUp() public {
+    function setUp() public virtual override {
         admin = makeAddr("admin");
-        bridgeAdmin = makeAddr("bridgeAdmin");
-        user1 = makeAddr("user1");
-        user2 = makeAddr("user2");
+        userHub = makeAddr("userHub");
+        userSpoke = makeAddr("userSpoke");
+        blacklisted = makeAddr("blacklisted");
 
-        // Deploy mock USDai
-        mockUsdai = new MockUSDai();
+        vm.deal(admin, 1000 ether);
+        vm.deal(userHub, 1000 ether);
+        vm.deal(userSpoke, 1000 ether);
+        vm.deal(blacklisted, 1000 ether);
 
-        // Deploy Chip
+        super.setUp();
+        setUpEndpoints(2, LibraryType.UltraLightNode);
+
+        /* Deploy MockUSDai */
+        vm.startPrank(admin);
+        MockUSDai mockUsdaiImpl = new MockUSDai();
+        mockUsdai = MockUSDai(
+            address(new ERC1967Proxy(address(mockUsdaiImpl), abi.encodeWithSelector(MockUSDai.initialize.selector)))
+        );
+        vm.stopPrank();
+
+        /* Deploy Chip */
         vm.startPrank(admin);
         Chip chipImpl = new Chip(address(mockUsdai));
-        bytes memory chipInitData = abi.encodeWithSelector(Chip.initialize.selector, 10000 ether, admin, admin);
-        chip = Chip(address(new ERC1967Proxy(address(chipImpl), chipInitData)));
-
-        // Deploy StakedChip
-        StakedChip stakedChipImpl = new StakedChip(address(mockUsdai), address(chip));
-        bytes memory stakedChipInitData = abi.encodeWithSelector(StakedChip.initialize.selector, admin, admin);
-        stakedChip = StakedChip(address(new ERC1967Proxy(address(stakedChipImpl), stakedChipInitData)));
-
-        // Grant roles
-        chip.grantRole(chip.TRANSFER_ADMIN_ROLE(), admin);
-        chip.grantRole(chip.TRANSFER_ADMIN_ROLE(), user1);
-        chip.grantRole(chip.TRANSFER_ADMIN_ROLE(), user2);
-        chip.grantRole(chip.TRANSFER_ADMIN_ROLE(), address(stakedChip));
-        stakedChip.grantRole(BRIDGE_ADMIN_ROLE, bridgeAdmin);
-
-        // Transfer CHIP to test users
-        assertTrue(chip.transfer(user1, 1000 ether));
-        assertTrue(chip.transfer(user2, 1000 ether));
+        chip = Chip(
+            address(
+                new TransparentUpgradeableProxy(
+                    address(chipImpl),
+                    admin,
+                    abi.encodeWithSelector(Chip.initialize.selector, CHIP_SUPPLY, admin, admin)
+                )
+            )
+        );
         vm.stopPrank();
+
+        /* Deploy StakedChip */
+        vm.startPrank(admin);
+        StakedChip stakedChipImpl = new StakedChip(address(mockUsdai), address(chip));
+        stakedChip = StakedChip(
+            address(
+                new TransparentUpgradeableProxy(
+                    address(stakedChipImpl), admin, abi.encodeWithSelector(StakedChip.initialize.selector, admin)
+                )
+            )
+        );
+        vm.stopPrank();
+
+        /* Deploy spoke OToken representing sCHIP on remote chains */
+        OToken oTokenImpl = new OToken();
+        oToken = OToken(
+            address(
+                new TransparentUpgradeableProxy(
+                    address(oTokenImpl),
+                    admin,
+                    abi.encodeWithSelector(OToken.initialize.selector, "Staked Chip", "sCHIP", admin)
+                )
+            )
+        );
+
+        /* Rate limit configs */
+        RateLimiter.RateLimitConfig[] memory hubRateLimits = new RateLimiter.RateLimitConfig[](1);
+        hubRateLimits[0] = RateLimiter.RateLimitConfig({dstEid: spokeEid, limit: RATE_LIMIT, window: 1 days});
+
+        RateLimiter.RateLimitConfig[] memory spokeRateLimits = new RateLimiter.RateLimitConfig[](1);
+        spokeRateLimits[0] = RateLimiter.RateLimitConfig({dstEid: hubEid, limit: RATE_LIMIT, window: 1 days});
+
+        /* Deploy hub OLockAdapter wrapping StakedChip.
+           No TRANSFER_ADMIN_ROLE needed: StakedChip only enforces the USDai blacklist on transfers. */
+        oLockAdapter = OLockAdapter(
+            _deployOApp(
+                type(OLockAdapter).creationCode,
+                abi.encode(address(stakedChip), address(endpoints[hubEid]), address(this))
+            )
+        );
+        oLockAdapter.setRateLimits(hubRateLimits);
+
+        /* Deploy spoke OAdapter wrapping OToken */
+        oAdapter = OAdapter(
+            _deployOApp(
+                type(OAdapter).creationCode, abi.encode(address(oToken), address(endpoints[spokeEid]), address(this))
+            )
+        );
+        oAdapter.setRateLimits(spokeRateLimits);
+
+        /* Wire OLockAdapter <-> OAdapter */
+        address[] memory oApps = new address[](2);
+        oApps[0] = address(oLockAdapter);
+        oApps[1] = address(oAdapter);
+        this.wireOApps(oApps);
+
+        /* Grant OAdapter BRIDGE_ADMIN_ROLE on OToken (spoke: mint/burn) */
+        vm.startPrank(admin);
+        oToken.grantRole(oToken.BRIDGE_ADMIN_ROLE(), address(oAdapter));
+        vm.stopPrank();
+
+        /* Set up Chip roles and distribute CHIP to users.
+           StakedChip needs TRANSFER_ADMIN_ROLE to accept CHIP deposits from users. */
+        vm.startPrank(admin);
+        chip.grantRole(chip.TRANSFER_ADMIN_ROLE(), admin);
+        chip.grantRole(chip.TRANSFER_ADMIN_ROLE(), address(stakedChip));
+        chip.transfer(userHub, CHIP_PER_USER);
+        vm.stopPrank();
+
+        /* userHub deposits CHIP into StakedChip to receive sCHIP shares */
+        vm.startPrank(userHub);
+        chip.approve(address(stakedChip), CHIP_PER_USER);
+        userHubSChip = stakedChip.deposit(CHIP_PER_USER, userHub);
+        vm.stopPrank();
+    }
+
+    /*------------------------------------------------------------------------*/
+    /* Helpers                                                                */
+    /*------------------------------------------------------------------------*/
+
+    function _buildSendParam(
+        uint32 dstEid,
+        address recipient,
+        uint256 amount
+    ) internal pure returns (SendParam memory) {
+        bytes memory options = OptionsBuilder.newOptions().addExecutorLzReceiveOption(200_000, 0);
+        return SendParam(dstEid, addressToBytes32(recipient), amount, amount, options, "", "");
     }
 
     /*------------------------------------------------------------------------*/
     /* Initial State Tests                                                    */
     /*------------------------------------------------------------------------*/
 
-    function test_InitialBridgedSupplyIsZero() public view {
-        assertEq(stakedChip.bridgedSupply(), 0);
+    function test__Constructor() public view {
+        assertEq(oLockAdapter.owner(), address(this));
+        assertEq(oLockAdapter.token(), address(stakedChip));
+
+        assertEq(oAdapter.owner(), address(this));
+        assertEq(oAdapter.token(), address(oToken));
+
+        assertGt(stakedChip.balanceOf(userHub), 0);
+        assertEq(oToken.balanceOf(userSpoke), 0);
     }
 
-    function test_InitialTotalShares() public view {
-        assertEq(stakedChip.totalShares(), 0);
-    }
-
-    /*------------------------------------------------------------------------*/
-    /* Burn (Bridge Out) Tests                                                */
-    /*------------------------------------------------------------------------*/
-
-    function test_BridgeAdminCanBurn() public {
-        // User1 deposits first
-        vm.startPrank(user1);
-        chip.approve(address(stakedChip), 100 ether);
-        uint256 shares = stakedChip.deposit(100 ether, user1);
-        vm.stopPrank();
-
-        // Bridge admin burns tokens
-        vm.prank(bridgeAdmin);
-        stakedChip.burn(user1, shares);
-
-        assertEq(stakedChip.balanceOf(user1), 0);
-    }
-
-    function test_BurnIncreaseBridgedSupply() public {
-        // User1 deposits
-        vm.startPrank(user1);
-        chip.approve(address(stakedChip), 100 ether);
-        uint256 shares = stakedChip.deposit(100 ether, user1);
-        vm.stopPrank();
-
-        uint256 bridgedSupplyBefore = stakedChip.bridgedSupply();
-
-        // Burn half
-        vm.prank(bridgeAdmin);
-        stakedChip.burn(user1, shares / 2);
-
-        assertEq(stakedChip.bridgedSupply(), bridgedSupplyBefore + shares / 2);
-    }
-
-    function test_BurnDecreasesUserBalance() public {
-        // User1 deposits
-        vm.startPrank(user1);
-        chip.approve(address(stakedChip), 100 ether);
-        uint256 shares = stakedChip.deposit(100 ether, user1);
-        vm.stopPrank();
-
-        uint256 burnAmount = shares / 2;
-
-        vm.prank(bridgeAdmin);
-        stakedChip.burn(user1, burnAmount);
-
-        assertEq(stakedChip.balanceOf(user1), shares - burnAmount);
-    }
-
-    function test_NonBridgeAdminCannotBurn() public {
-        // User1 deposits
-        vm.startPrank(user1);
-        chip.approve(address(stakedChip), 100 ether);
-        uint256 shares = stakedChip.deposit(100 ether, user1);
-        vm.stopPrank();
-
-        // User2 tries to burn user1's tokens
-        vm.prank(user2);
-        vm.expectRevert();
-        stakedChip.burn(user1, shares);
-    }
-
-    function test_CannotBurnWhenPaused() public {
-        // User1 deposits
-        vm.startPrank(user1);
-        chip.approve(address(stakedChip), 100 ether);
-        uint256 shares = stakedChip.deposit(100 ether, user1);
-        vm.stopPrank();
-
-        // Pause
-        vm.prank(admin);
-        stakedChip.grantRole(keccak256("PAUSE_ADMIN_ROLE"), admin);
-        vm.prank(admin);
-        stakedChip.pause();
-
-        // Try to burn
-        vm.prank(bridgeAdmin);
-        vm.expectRevert();
-        stakedChip.burn(user1, shares);
+    function test__ApprovalRequired() public view {
+        assertTrue(oLockAdapter.approvalRequired());
+        assertFalse(oAdapter.approvalRequired());
     }
 
     /*------------------------------------------------------------------------*/
-    /* Mint (Bridge In) Tests                                                 */
+    /* Hub -> Spoke Send Tests                                                */
     /*------------------------------------------------------------------------*/
 
-    function test_BridgeAdminCanMint() public {
-        // Simulate tokens were bridged out (increase bridgedSupply)
-        vm.startPrank(user1);
-        chip.approve(address(stakedChip), 100 ether);
-        uint256 shares = stakedChip.deposit(100 ether, user1);
-        vm.stopPrank();
+    function test__SendFromHubToSpoke() public {
+        uint256 tokensToSend = 100 ether;
+        uint256 sChipTotalSupplyBefore = stakedChip.totalSupply();
+        uint256 totalAssetsBefore = stakedChip.totalAssets();
 
-        vm.prank(bridgeAdmin);
-        stakedChip.burn(user1, shares);
+        SendParam memory sendParam = _buildSendParam(spokeEid, userSpoke, tokensToSend);
+        MessagingFee memory fee = oLockAdapter.quoteSend(sendParam, false);
 
-        // Now mint to user2 (tokens coming back from other chain)
-        vm.prank(bridgeAdmin);
-        stakedChip.mint(user2, shares);
+        vm.prank(userHub);
+        stakedChip.approve(address(oLockAdapter), tokensToSend);
 
-        assertEq(stakedChip.balanceOf(user2), shares);
+        vm.prank(userHub);
+        oLockAdapter.send{value: fee.nativeFee}(sendParam, fee, payable(userHub));
+
+        verifyPackets(spokeEid, addressToBytes32(address(oAdapter)));
+
+        /* Hub: sCHIP locked in OLockAdapter — sCHIP total supply unchanged,
+           underlying CHIP balance in vault unchanged */
+        assertEq(stakedChip.balanceOf(userHub), userHubSChip - tokensToSend);
+        assertEq(stakedChip.balanceOf(address(oLockAdapter)), tokensToSend);
+        assertEq(stakedChip.totalSupply(), sChipTotalSupplyBefore);
+        assertEq(stakedChip.totalAssets(), totalAssetsBefore);
+
+        /* Spoke: OToken minted to recipient */
+        assertEq(oToken.balanceOf(userSpoke), tokensToSend);
     }
 
-    function test_MintDecreasesBridgedSupply() public {
-        // Setup: burn some tokens first
-        vm.startPrank(user1);
-        chip.approve(address(stakedChip), 100 ether);
-        uint256 shares = stakedChip.deposit(100 ether, user1);
-        vm.stopPrank();
+    function testFuzz__SendFromHubToSpoke(
+        uint256 tokensToSend
+    ) public {
+        tokensToSend = bound(tokensToSend, 1e12, RATE_LIMIT);
+        /* Align to OFT dust boundary (shared decimals = 6, ld2sd rate = 1e12) */
+        tokensToSend = (tokensToSend / 1e12) * 1e12;
 
-        vm.prank(bridgeAdmin);
-        stakedChip.burn(user1, shares);
+        uint256 sChipTotalSupplyBefore = stakedChip.totalSupply();
+        uint256 totalAssetsBefore = stakedChip.totalAssets();
 
-        uint256 bridgedSupplyBefore = stakedChip.bridgedSupply();
+        SendParam memory sendParam = _buildSendParam(spokeEid, userSpoke, tokensToSend);
+        MessagingFee memory fee = oLockAdapter.quoteSend(sendParam, false);
 
-        // Mint back
-        vm.prank(bridgeAdmin);
-        stakedChip.mint(user2, shares / 2);
+        vm.prank(userHub);
+        stakedChip.approve(address(oLockAdapter), tokensToSend);
 
-        assertEq(stakedChip.bridgedSupply(), bridgedSupplyBefore - shares / 2);
-    }
+        vm.prank(userHub);
+        oLockAdapter.send{value: fee.nativeFee}(sendParam, fee, payable(userHub));
 
-    function test_MintIncreasesRecipientBalance() public {
-        // Setup: burn first
-        vm.startPrank(user1);
-        chip.approve(address(stakedChip), 100 ether);
-        uint256 shares = stakedChip.deposit(100 ether, user1);
-        vm.stopPrank();
+        verifyPackets(spokeEid, addressToBytes32(address(oAdapter)));
 
-        vm.prank(bridgeAdmin);
-        stakedChip.burn(user1, shares);
-
-        // Mint to user2
-        uint256 balanceBefore = stakedChip.balanceOf(user2);
-        vm.prank(bridgeAdmin);
-        stakedChip.mint(user2, shares);
-
-        assertEq(stakedChip.balanceOf(user2), balanceBefore + shares);
-    }
-
-    function test_NonBridgeAdminCannotMint() public {
-        vm.prank(user1);
-        vm.expectRevert();
-        stakedChip.mint(user2, 100 ether);
-    }
-
-    function test_CannotMintWhenPaused() public {
-        // Setup: burn first
-        vm.startPrank(user1);
-        chip.approve(address(stakedChip), 100 ether);
-        uint256 shares = stakedChip.deposit(100 ether, user1);
-        vm.stopPrank();
-
-        vm.prank(bridgeAdmin);
-        stakedChip.burn(user1, shares);
-
-        // Pause
-        vm.prank(admin);
-        stakedChip.grantRole(keccak256("PAUSE_ADMIN_ROLE"), admin);
-        vm.prank(admin);
-        stakedChip.pause();
-
-        // Try to mint
-        vm.prank(bridgeAdmin);
-        vm.expectRevert();
-        stakedChip.mint(user2, shares);
+        assertEq(stakedChip.balanceOf(userHub), userHubSChip - tokensToSend);
+        assertEq(stakedChip.balanceOf(address(oLockAdapter)), tokensToSend);
+        assertEq(stakedChip.totalSupply(), sChipTotalSupplyBefore);
+        assertEq(stakedChip.totalAssets(), totalAssetsBefore);
+        assertEq(oToken.balanceOf(userSpoke), tokensToSend);
     }
 
     /*------------------------------------------------------------------------*/
-    /* TotalShares Tests                                                      */
+    /* Spoke -> Hub Send Tests                                                */
     /*------------------------------------------------------------------------*/
 
-    function test_TotalSharesEqualsSupplyPlusBridged() public {
-        // User1 deposits
-        vm.startPrank(user1);
-        chip.approve(address(stakedChip), 100 ether);
-        stakedChip.deposit(100 ether, user1);
-        vm.stopPrank();
+    function test__SendFromSpokeToHub() public {
+        uint256 tokensToSend = 100 ether;
+        uint256 sChipTotalSupplyBefore = stakedChip.totalSupply();
+        uint256 totalAssetsBefore = stakedChip.totalAssets();
 
-        uint256 totalSupply = stakedChip.totalSupply();
-        uint256 bridgedSupply = stakedChip.bridgedSupply();
+        /* Bridge hub->spoke to give userSpoke some OToken */
+        SendParam memory sendToSpoke = _buildSendParam(spokeEid, userSpoke, tokensToSend);
+        MessagingFee memory feeToSpoke = oLockAdapter.quoteSend(sendToSpoke, false);
 
-        assertEq(stakedChip.totalShares(), totalSupply + bridgedSupply);
-    }
+        vm.prank(userHub);
+        stakedChip.approve(address(oLockAdapter), tokensToSend);
+        vm.prank(userHub);
+        oLockAdapter.send{value: feeToSpoke.nativeFee}(sendToSpoke, feeToSpoke, payable(userHub));
+        verifyPackets(spokeEid, addressToBytes32(address(oAdapter)));
 
-    function test_TotalSharesAfterBurn() public {
-        // User1 deposits
-        vm.startPrank(user1);
-        chip.approve(address(stakedChip), 100 ether);
-        uint256 shares = stakedChip.deposit(100 ether, user1);
-        vm.stopPrank();
+        assertEq(oToken.balanceOf(userSpoke), tokensToSend);
+        assertEq(stakedChip.totalSupply(), sChipTotalSupplyBefore);
+        assertEq(stakedChip.totalAssets(), totalAssetsBefore);
 
-        uint256 totalSharesBefore = stakedChip.totalShares();
+        /* Bridge spoke->hub */
+        SendParam memory sendToHub = _buildSendParam(hubEid, userHub, tokensToSend);
+        MessagingFee memory feeToHub = oAdapter.quoteSend(sendToHub, false);
 
-        // Burn half
-        vm.prank(bridgeAdmin);
-        stakedChip.burn(user1, shares / 2);
+        vm.prank(userSpoke);
+        oAdapter.send{value: feeToHub.nativeFee}(sendToHub, feeToHub, payable(userSpoke));
+        verifyPackets(hubEid, addressToBytes32(address(oLockAdapter)));
 
-        // Total shares should remain the same (supply decreases, bridgedSupply increases)
-        assertEq(stakedChip.totalShares(), totalSharesBefore);
-    }
+        /* Spoke: OToken burned */
+        assertEq(oToken.balanceOf(userSpoke), 0);
 
-    function test_TotalSharesAfterMint() public {
-        // Setup: deposit and burn
-        vm.startPrank(user1);
-        chip.approve(address(stakedChip), 100 ether);
-        uint256 shares = stakedChip.deposit(100 ether, user1);
-        vm.stopPrank();
-
-        vm.prank(bridgeAdmin);
-        stakedChip.burn(user1, shares);
-
-        uint256 totalSharesBefore = stakedChip.totalShares();
-
-        // Mint back
-        vm.prank(bridgeAdmin);
-        stakedChip.mint(user2, shares / 2);
-
-        // Total shares should remain the same
-        assertEq(stakedChip.totalShares(), totalSharesBefore);
-    }
-
-    function test_TotalSharesConsistentAcrossBridgeOperations() public {
-        // Multiple users deposit
-        vm.prank(user1);
-        chip.approve(address(stakedChip), 100 ether);
-        vm.prank(user1);
-        uint256 shares1 = stakedChip.deposit(100 ether, user1);
-
-        vm.prank(user2);
-        chip.approve(address(stakedChip), 200 ether);
-        vm.prank(user2);
-        stakedChip.deposit(200 ether, user2);
-
-        uint256 totalSharesAfterDeposits = stakedChip.totalShares();
-
-        // Burn from user1
-        vm.prank(bridgeAdmin);
-        stakedChip.burn(user1, shares1);
-
-        assertEq(stakedChip.totalShares(), totalSharesAfterDeposits);
-
-        // Mint to different user
-        vm.prank(bridgeAdmin);
-        stakedChip.mint(user2, shares1);
-
-        assertEq(stakedChip.totalShares(), totalSharesAfterDeposits);
+        /* Hub: sCHIP unlocked — total supply, total assets unchanged throughout */
+        assertEq(stakedChip.balanceOf(userHub), userHubSChip);
+        assertEq(stakedChip.balanceOf(address(oLockAdapter)), 0);
+        assertEq(stakedChip.totalSupply(), sChipTotalSupplyBefore);
+        assertEq(stakedChip.totalAssets(), totalAssetsBefore);
     }
 
     /*------------------------------------------------------------------------*/
     /* Round Trip Tests                                                       */
     /*------------------------------------------------------------------------*/
 
-    function test_RoundTripBurnAndMint() public {
-        // User1 deposits
-        vm.startPrank(user1);
-        chip.approve(address(stakedChip), 100 ether);
-        uint256 shares = stakedChip.deposit(100 ether, user1);
-        vm.stopPrank();
+    function test__RoundTrip() public {
+        uint256 tokensToSend = 200 ether;
 
-        uint256 totalSupplyBefore = stakedChip.totalSupply();
-        uint256 bridgedSupplyBefore = stakedChip.bridgedSupply();
+        uint256 sChipSupplyBefore = stakedChip.totalSupply();
+        uint256 totalAssetsBefore = stakedChip.totalAssets();
+        uint256 oTokenSupplyBefore = oToken.totalSupply();
 
-        // Burn (bridge out)
-        vm.prank(bridgeAdmin);
-        stakedChip.burn(user1, shares);
+        /* Hub -> Spoke */
+        SendParam memory sendToSpoke = _buildSendParam(spokeEid, userSpoke, tokensToSend);
+        MessagingFee memory feeToSpoke = oLockAdapter.quoteSend(sendToSpoke, false);
 
-        assertEq(stakedChip.totalSupply(), totalSupplyBefore - shares);
-        assertEq(stakedChip.bridgedSupply(), bridgedSupplyBefore + shares);
+        vm.prank(userHub);
+        stakedChip.approve(address(oLockAdapter), tokensToSend);
+        vm.prank(userHub);
+        oLockAdapter.send{value: feeToSpoke.nativeFee}(sendToSpoke, feeToSpoke, payable(userHub));
+        verifyPackets(spokeEid, addressToBytes32(address(oAdapter)));
 
-        // Mint (bridge back)
-        vm.prank(bridgeAdmin);
-        stakedChip.mint(user1, shares);
+        /* Intermediary: sCHIP locked in adapter, OToken minted on spoke */
+        assertEq(stakedChip.balanceOf(userHub), userHubSChip - tokensToSend);
+        assertEq(stakedChip.balanceOf(address(oLockAdapter)), tokensToSend);
+        assertEq(stakedChip.totalSupply(), sChipSupplyBefore);
+        assertEq(stakedChip.totalAssets(), totalAssetsBefore);
+        assertEq(oToken.balanceOf(userSpoke), tokensToSend);
+        assertEq(oToken.totalSupply(), oTokenSupplyBefore + tokensToSend);
 
-        assertEq(stakedChip.totalSupply(), totalSupplyBefore);
-        assertEq(stakedChip.bridgedSupply(), bridgedSupplyBefore);
-    }
+        /* Spoke -> Hub */
+        SendParam memory sendToHub = _buildSendParam(hubEid, userHub, tokensToSend);
+        MessagingFee memory feeToHub = oAdapter.quoteSend(sendToHub, false);
 
-    function test_PartialRoundTrip() public {
-        // User1 deposits
-        vm.startPrank(user1);
-        chip.approve(address(stakedChip), 100 ether);
-        uint256 shares = stakedChip.deposit(100 ether, user1);
-        vm.stopPrank();
+        vm.prank(userSpoke);
+        oAdapter.send{value: feeToHub.nativeFee}(sendToHub, feeToHub, payable(userSpoke));
+        verifyPackets(hubEid, addressToBytes32(address(oLockAdapter)));
 
-        // Burn all
-        vm.prank(bridgeAdmin);
-        stakedChip.burn(user1, shares);
-
-        uint256 bridgedSupplyAfterBurn = stakedChip.bridgedSupply();
-
-        // Mint back only half
-        vm.prank(bridgeAdmin);
-        stakedChip.mint(user2, shares / 2);
-
-        assertEq(stakedChip.bridgedSupply(), bridgedSupplyAfterBurn - shares / 2);
-        assertEq(stakedChip.balanceOf(user2), shares / 2);
+        /* Final: all restored */
+        assertEq(stakedChip.balanceOf(userHub), userHubSChip);
+        assertEq(stakedChip.balanceOf(address(oLockAdapter)), 0);
+        assertEq(stakedChip.totalSupply(), sChipSupplyBefore);
+        assertEq(stakedChip.totalAssets(), totalAssetsBefore);
+        assertEq(oToken.balanceOf(userSpoke), 0);
+        assertEq(oToken.totalSupply(), oTokenSupplyBefore);
     }
 
     /*------------------------------------------------------------------------*/
-    /* Multiple Users Bridge Tests                                            */
+    /* Vault Invariant Tests                                                  */
     /*------------------------------------------------------------------------*/
 
-    function test_MultipleUsersBridging() public {
-        // User1 deposits and bridges out
-        vm.startPrank(user1);
-        chip.approve(address(stakedChip), 100 ether);
-        uint256 shares1 = stakedChip.deposit(100 ether, user1);
+    function test__TotalAssetsUnaffectedByBridge() public {
+        uint256 totalAssetsBefore = stakedChip.totalAssets();
+        uint256 tokensToSend = 100 ether;
+
+        /* Hub -> Spoke: CHIP backing stays in vault, only sCHIP shares move */
+        SendParam memory sendToSpoke = _buildSendParam(spokeEid, userSpoke, tokensToSend);
+        MessagingFee memory feeToSpoke = oLockAdapter.quoteSend(sendToSpoke, false);
+
+        vm.prank(userHub);
+        stakedChip.approve(address(oLockAdapter), tokensToSend);
+        vm.prank(userHub);
+        oLockAdapter.send{value: feeToSpoke.nativeFee}(sendToSpoke, feeToSpoke, payable(userHub));
+        verifyPackets(spokeEid, addressToBytes32(address(oAdapter)));
+
+        assertEq(stakedChip.totalAssets(), totalAssetsBefore);
+
+        /* Spoke -> Hub: unlocking sCHIP also does not affect the CHIP in the vault */
+        SendParam memory sendToHub = _buildSendParam(hubEid, userHub, tokensToSend);
+        MessagingFee memory feeToHub = oAdapter.quoteSend(sendToHub, false);
+
+        vm.prank(userSpoke);
+        oAdapter.send{value: feeToHub.nativeFee}(sendToHub, feeToHub, payable(userSpoke));
+        verifyPackets(hubEid, addressToBytes32(address(oLockAdapter)));
+
+        assertEq(stakedChip.totalAssets(), totalAssetsBefore);
+    }
+
+    function test__SharePriceUnaffectedByBridge() public {
+        /* A second depositor establishes a reference point for share price */
+        address user2 = makeAddr("user2");
+        vm.deal(user2, 100 ether);
+        uint256 user2ChipAmount = 200 ether;
+
+        vm.startPrank(admin);
+        chip.transfer(user2, user2ChipAmount);
         vm.stopPrank();
 
-        vm.prank(bridgeAdmin);
-        stakedChip.burn(user1, shares1);
-
-        // User2 deposits and bridges out
         vm.startPrank(user2);
-        chip.approve(address(stakedChip), 200 ether);
-        uint256 shares2 = stakedChip.deposit(200 ether, user2);
-        vm.stopPrank();
-
-        vm.prank(bridgeAdmin);
-        stakedChip.burn(user2, shares2);
-
-        uint256 expectedBridgedSupply = shares1 + shares2;
-        assertEq(stakedChip.bridgedSupply(), expectedBridgedSupply);
-
-        // Bridge back to different users
-        vm.prank(bridgeAdmin);
-        stakedChip.mint(user2, shares1);
-
-        vm.prank(bridgeAdmin);
-        stakedChip.mint(user1, shares2);
-
-        assertEq(stakedChip.balanceOf(user2), shares1);
-        assertEq(stakedChip.balanceOf(user1), shares2);
-    }
-
-    /*------------------------------------------------------------------------*/
-    /* Integration with Deposits/Withdrawals                                  */
-    /*------------------------------------------------------------------------*/
-
-    function test_BridgeWithActiveDeposits() public {
-        // Multiple users deposit
-        vm.prank(user1);
-        chip.approve(address(stakedChip), 100 ether);
-        vm.prank(user1);
-        uint256 shares1 = stakedChip.deposit(100 ether, user1);
-
-        vm.prank(user2);
-        chip.approve(address(stakedChip), 100 ether);
-        vm.prank(user2);
-        uint256 shares2 = stakedChip.deposit(100 ether, user2);
-
-        // Bridge out user1's shares
-        vm.prank(bridgeAdmin);
-        stakedChip.burn(user1, shares1);
-
-        // User2 can still withdraw normally
-        vm.prank(user2);
-        stakedChip.redeem(shares2, user2, user2);
-
-        assertEq(stakedChip.balanceOf(user2), 0);
-    }
-
-    function test_DepositAfterBridgeOperations() public {
-        // User1 deposits and bridges out
-        vm.startPrank(user1);
-        chip.approve(address(stakedChip), 100 ether);
-        uint256 shares1 = stakedChip.deposit(100 ether, user1);
-        vm.stopPrank();
-
-        vm.prank(bridgeAdmin);
-        stakedChip.burn(user1, shares1);
-
-        // User2 makes fresh deposit
-        vm.startPrank(user2);
-        chip.approve(address(stakedChip), 100 ether);
-        uint256 shares2 = stakedChip.deposit(100 ether, user2);
-        vm.stopPrank();
-
-        // Both operations successful
-        assertTrue(shares2 > 0);
-        assertGt(stakedChip.bridgedSupply(), 0);
-    }
-
-    /*------------------------------------------------------------------------*/
-    /* Edge Cases                                                             */
-    /*------------------------------------------------------------------------*/
-
-    function test_BurnEntireBalance() public {
-        vm.startPrank(user1);
-        chip.approve(address(stakedChip), 100 ether);
-        uint256 shares = stakedChip.deposit(100 ether, user1);
-        vm.stopPrank();
-
-        vm.prank(bridgeAdmin);
-        stakedChip.burn(user1, shares);
-
-        assertEq(stakedChip.balanceOf(user1), 0);
-        assertEq(stakedChip.bridgedSupply(), shares);
-    }
-
-    function test_MintWithoutPriorBurn() public {
-        // This would cause underflow if bridgedSupply tracking is broken
-        // The contract should handle this gracefully or revert
-
-        // In our implementation, this would underflow since bridgedSupply starts at 0
-        vm.prank(bridgeAdmin);
-        vm.expectRevert(); // Expect arithmetic underflow
-        stakedChip.mint(user1, 100 ether);
-    }
-
-    function test_MultipleBurnsIncrementBridgedSupply() public {
-        vm.startPrank(user1);
-        chip.approve(address(stakedChip), 200 ether);
-        uint256 shares = stakedChip.deposit(200 ether, user1);
-        vm.stopPrank();
-
-        // Burn in multiple transactions
-        vm.prank(bridgeAdmin);
-        stakedChip.burn(user1, shares / 4);
-
-        uint256 bridgedAfterFirst = stakedChip.bridgedSupply();
-
-        vm.prank(bridgeAdmin);
-        stakedChip.burn(user1, shares / 4);
-
-        assertEq(stakedChip.bridgedSupply(), bridgedAfterFirst + shares / 4);
-    }
-
-    function test_BridgedSupplyDoesNotAffectSharePrice() public {
-        // Note: Share price is slightly affected by bridge operations due to locked shares
-        // This is expected behavior and within acceptable tolerance
-        vm.skip(true);
-
-        // User1 deposits
-        vm.startPrank(user1);
-        chip.approve(address(stakedChip), 100 ether);
-        stakedChip.deposit(100 ether, user1);
+        chip.approve(address(stakedChip), user2ChipAmount);
+        uint256 user2SChip = stakedChip.deposit(user2ChipAmount, user2);
         vm.stopPrank();
 
         uint256 sharePriceBefore = stakedChip.convertToAssets(1 ether);
 
-        // User2 deposits and bridges out
+        /* userHub bridges 100 ether of sCHIP to spoke */
+        uint256 tokensToSend = 100 ether;
+        SendParam memory sendParam = _buildSendParam(spokeEid, userSpoke, tokensToSend);
+        MessagingFee memory fee = oLockAdapter.quoteSend(sendParam, false);
+
+        vm.prank(userHub);
+        stakedChip.approve(address(oLockAdapter), tokensToSend);
+        vm.prank(userHub);
+        oLockAdapter.send{value: fee.nativeFee}(sendParam, fee, payable(userHub));
+        verifyPackets(spokeEid, addressToBytes32(address(oAdapter)));
+
+        /* totalAssets and totalSupply both unchanged, so share price is identical */
+        assertEq(stakedChip.convertToAssets(1 ether), sharePriceBefore);
+
+        /* user2's redemption value is unaffected */
+        assertEq(stakedChip.convertToAssets(user2SChip), user2ChipAmount);
+    }
+
+    function test__NonBridgingDepositorCanStillWithdraw() public {
+        /* user2 deposits independently */
+        address user2 = makeAddr("user2");
+        uint256 user2ChipAmount = 200 ether;
+
+        vm.startPrank(admin);
+        chip.transfer(user2, user2ChipAmount);
+        vm.stopPrank();
+
         vm.startPrank(user2);
-        chip.approve(address(stakedChip), 100 ether);
-        uint256 shares2 = stakedChip.deposit(100 ether, user2);
+        chip.approve(address(stakedChip), user2ChipAmount);
+        uint256 user2SChip = stakedChip.deposit(user2ChipAmount, user2);
         vm.stopPrank();
 
-        vm.prank(bridgeAdmin);
-        stakedChip.burn(user2, shares2);
+        /* userHub bridges all their sCHIP to spoke */
+        uint256 tokensToSend = 300 ether;
+        SendParam memory sendParam = _buildSendParam(spokeEid, userSpoke, tokensToSend);
+        MessagingFee memory fee = oLockAdapter.quoteSend(sendParam, false);
 
-        uint256 sharePriceAfter = stakedChip.convertToAssets(1 ether);
+        vm.prank(userHub);
+        stakedChip.approve(address(oLockAdapter), tokensToSend);
+        vm.prank(userHub);
+        oLockAdapter.send{value: fee.nativeFee}(sendParam, fee, payable(userHub));
+        verifyPackets(spokeEid, addressToBytes32(address(oAdapter)));
 
-        // Share price should remain stable
-        assertApproxEqRel(sharePriceBefore, sharePriceAfter, 0.001e18); // 0.1% tolerance
+        /* user2 redeems — must receive exactly what they put in since there is no yield */
+        uint256 chipBefore = chip.balanceOf(user2);
+        vm.prank(user2);
+        uint256 received = stakedChip.redeem(user2SChip, user2, user2);
+
+        assertEq(chip.balanceOf(user2) - chipBefore, received);
+        assertEq(received, user2ChipAmount);
     }
 
     /*------------------------------------------------------------------------*/
-    /* Access Control Tests                                                   */
+    /* Rate Limit Tests                                                       */
     /*------------------------------------------------------------------------*/
 
-    function test_OnlyBridgeAdminCanMint() public {
-        vm.prank(user1);
-        vm.expectRevert();
-        stakedChip.mint(user2, 100 ether);
+    function test__HubRateLimitEnforced() public {
+        uint256 tokensToSend = RATE_LIMIT + 1e12;
 
-        vm.prank(admin);
+        SendParam memory sendParam = _buildSendParam(spokeEid, userSpoke, tokensToSend);
+        MessagingFee memory fee = oLockAdapter.quoteSend(sendParam, false);
+
+        vm.prank(userHub);
+        stakedChip.approve(address(oLockAdapter), tokensToSend);
+
+        vm.prank(userHub);
         vm.expectRevert();
-        stakedChip.mint(user2, 100 ether);
+        oLockAdapter.send{value: fee.nativeFee}(sendParam, fee, payable(userHub));
     }
 
-    function test_OnlyBridgeAdminCanBurn() public {
-        vm.startPrank(user1);
-        chip.approve(address(stakedChip), 100 ether);
-        uint256 shares = stakedChip.deposit(100 ether, user1);
+    function test__SpokeRateLimitEnforced() public {
+        /* Give userSpoke some OToken via hub->spoke bridge */
+        uint256 bridgeAmount = RATE_LIMIT;
+        SendParam memory sendToSpoke = _buildSendParam(spokeEid, userSpoke, bridgeAmount);
+        MessagingFee memory feeToSpoke = oLockAdapter.quoteSend(sendToSpoke, false);
+
+        vm.prank(userHub);
+        stakedChip.approve(address(oLockAdapter), bridgeAmount);
+        vm.prank(userHub);
+        oLockAdapter.send{value: feeToSpoke.nativeFee}(sendToSpoke, feeToSpoke, payable(userHub));
+        verifyPackets(spokeEid, addressToBytes32(address(oAdapter)));
+
+        /* Try to bridge back more than the rate limit */
+        uint256 tokensToSend = RATE_LIMIT + 1e12;
+
+        vm.startPrank(admin);
+        oToken.grantRole(oToken.BRIDGE_ADMIN_ROLE(), admin);
+        oToken.mint(userSpoke, tokensToSend - bridgeAmount);
         vm.stopPrank();
 
-        vm.prank(user1);
-        vm.expectRevert();
-        stakedChip.burn(user1, shares);
+        SendParam memory sendToHub = _buildSendParam(hubEid, userHub, tokensToSend);
+        MessagingFee memory feeToHub = oAdapter.quoteSend(sendToHub, false);
 
-        vm.prank(admin);
+        vm.prank(userSpoke);
         vm.expectRevert();
-        stakedChip.burn(user1, shares);
+        oAdapter.send{value: feeToHub.nativeFee}(sendToHub, feeToHub, payable(userSpoke));
     }
 
-    function test_AdminCanGrantBridgeRole() public {
-        address newBridgeAdmin = makeAddr("newBridgeAdmin");
+    /*------------------------------------------------------------------------*/
+    /* Blacklist Tests                                                        */
+    /*------------------------------------------------------------------------*/
 
+    function test__BlacklistedSenderCannotBridgeFromHub() public {
+        uint256 chipAmount = 100 ether;
+
+        /* Give blacklisted user some CHIP and let them deposit before blacklisting */
+        vm.startPrank(admin);
+        chip.transfer(blacklisted, chipAmount);
+        vm.stopPrank();
+
+        vm.startPrank(blacklisted);
+        chip.approve(address(stakedChip), chipAmount);
+        uint256 sChipAmount = stakedChip.deposit(chipAmount, blacklisted);
+        vm.stopPrank();
+
+        /* Now blacklist them */
         vm.prank(admin);
-        stakedChip.grantRole(BRIDGE_ADMIN_ROLE, newBridgeAdmin);
+        mockUsdai.setBlacklist(blacklisted, true);
 
-        assertTrue(stakedChip.hasRole(BRIDGE_ADMIN_ROLE, newBridgeAdmin));
+        SendParam memory sendParam = _buildSendParam(spokeEid, userSpoke, sChipAmount);
+        MessagingFee memory fee = oLockAdapter.quoteSend(sendParam, false);
+
+        vm.prank(blacklisted);
+        stakedChip.approve(address(oLockAdapter), sChipAmount);
+
+        /* Blacklisted user cannot bridge — StakedChip._update blocks transfer from blacklisted */
+        vm.prank(blacklisted);
+        vm.expectRevert();
+        oLockAdapter.send{value: fee.nativeFee}(sendParam, fee, payable(blacklisted));
+    }
+
+    function test__BlacklistedRecipientCannotReceiveOnHub() public {
+        uint256 tokensToSend = 100 ether;
+
+        /* Simulate sCHIP locked in OLockAdapter (as if a hub->spoke bridge occurred) */
+        vm.prank(userHub);
+        stakedChip.transfer(address(oLockAdapter), tokensToSend);
+
+        /* Blacklist the intended hub recipient */
+        vm.prank(admin);
+        mockUsdai.setBlacklist(blacklisted, true);
+
+        /* OLockAdapter cannot unlock sCHIP to a blacklisted address —
+           this is what would happen when lzReceive tries to credit the recipient */
+        vm.prank(address(oLockAdapter));
+        vm.expectRevert(abi.encodeWithSelector(IStakedChip.BlacklistedAddress.selector, blacklisted));
+        stakedChip.transfer(blacklisted, tokensToSend);
+
+        /* Confirm tokens remain locked */
+        assertEq(stakedChip.balanceOf(blacklisted), 0);
+        assertEq(stakedChip.balanceOf(address(oLockAdapter)), tokensToSend);
     }
 }
