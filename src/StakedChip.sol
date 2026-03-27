@@ -28,7 +28,6 @@ import {Math} from "openzeppelin-contracts/contracts/utils/math/Math.sol";
 import {IUSDai} from "usdai-contracts/src/interfaces/IUSDai.sol";
 
 import {IStakedChip} from "./interfaces/IStakedChip.sol";
-import {IMintableBurnable} from "./interfaces/IMintableBurnable.sol";
 import {IChip} from "./interfaces/IChip.sol";
 
 /**
@@ -68,21 +67,9 @@ contract StakedChip is
     bytes32 internal constant PAUSE_ADMIN_ROLE = keccak256("PAUSE_ADMIN_ROLE");
 
     /**
-     * @notice Role for bridge mint/burn operations
-     */
-    bytes32 internal constant BRIDGE_ADMIN_ROLE = keccak256("BRIDGE_ADMIN_ROLE");
-
-    /**
      * @notice Fixed point scale for share price calculations
      */
     uint256 private constant FIXED_POINT_SCALE = 1e18;
-
-    /**
-     * @notice Supply storage location
-     * @dev keccak256(abi.encode(uint256(keccak256("stakedChip.supply")) - 1)) & ~bytes32(uint256(0xff));
-     */
-    bytes32 private constant SUPPLY_STORAGE_LOCATION =
-        0x8efa5957202500d49dedd7834fcce4642297c95cc7547d7acee2dfc86dc86100;
 
     /**
      * @notice Deposits storage location
@@ -114,13 +101,6 @@ contract StakedChip is
      */
     struct Deposits {
         uint256 balance;
-    }
-
-    /**
-     * @custom:storage-location erc7201:stakedChip.supply
-     */
-    struct Supply {
-        uint256 bridged;
     }
 
     /*------------------------------------------------------------------------*/
@@ -193,17 +173,6 @@ contract StakedChip is
     /*------------------------------------------------------------------------*/
 
     /**
-     * @notice Get reference to ERC-7201 supply storage
-     *
-     * @return $ Reference to supply storage
-     */
-    function _getSupplyStorage() internal pure returns (Supply storage $) {
-        assembly {
-            $.slot := SUPPLY_STORAGE_LOCATION
-        }
-    }
-
-    /**
      * @notice Get reference to ERC-7201 deposits storage
      *
      * @return $ Reference to deposits storage
@@ -227,7 +196,7 @@ contract StakedChip is
      * @return Share price
      */
     function _sharePrice() internal view returns (uint256) {
-        return totalShares() == 0 ? FIXED_POINT_SCALE : (_depositBalance() * FIXED_POINT_SCALE) / totalShares();
+        return totalSupply() == 0 ? FIXED_POINT_SCALE : (_depositBalance() * FIXED_POINT_SCALE) / totalSupply();
     }
 
     /**
@@ -306,7 +275,7 @@ contract StakedChip is
      * @notice Mint locked shares
      */
     function _mintLockedShares() internal {
-        if (totalShares() == 0) _mint(address(0xdead), LOCKED_SHARES);
+        if (totalSupply() == 0) _mint(address(0xdead), LOCKED_SHARES);
     }
 
     /**
@@ -334,20 +303,6 @@ contract StakedChip is
         return _usdai.isBlacklisted(account);
     }
 
-    /**
-     * @inheritdoc IStakedChip
-     */
-    function bridgedSupply() public view returns (uint256) {
-        return _getSupplyStorage().bridged;
-    }
-
-    /**
-     * @inheritdoc IStakedChip
-     */
-    function totalShares() public view returns (uint256) {
-        return totalSupply() + bridgedSupply();
-    }
-
     /*------------------------------------------------------------------------*/
     /* ERC4626 Overrides                                                      */
     /*------------------------------------------------------------------------*/
@@ -359,12 +314,10 @@ contract StakedChip is
         uint256 assets,
         Math.Rounding rounding
     ) internal view override returns (uint256) {
-        uint256 _totalShares = totalShares();
-
         /* If no shares exist, compute initial deposit shares (subtract locked shares) */
-        if (_totalShares == 0) return assets - LOCKED_SHARES;
+        if (totalSupply() == 0) return assets - LOCKED_SHARES;
 
-        return Math.mulDiv(assets, _totalShares, _depositBalance(), rounding);
+        return Math.mulDiv(assets, totalSupply(), _depositBalance(), rounding);
     }
 
     /**
@@ -374,12 +327,10 @@ contract StakedChip is
         uint256 shares,
         Math.Rounding rounding
     ) internal view override returns (uint256) {
-        uint256 _totalShares = totalShares();
-
         /* If no shares exist, compute initial deposit assets (add locked shares cost) */
-        if (_totalShares == 0) return LOCKED_SHARES + shares;
+        if (totalSupply() == 0) return LOCKED_SHARES + shares;
 
-        return Math.mulDiv(shares, _depositBalance(), _totalShares, rounding);
+        return Math.mulDiv(shares, _depositBalance(), totalSupply(), rounding);
     }
 
     /**
@@ -395,7 +346,7 @@ contract StakedChip is
     function previewRedeem(
         uint256 shares
     ) public view override(ERC4626Upgradeable, IERC4626) returns (uint256) {
-        if (totalShares() == 0) return 0;
+        if (totalSupply() == 0) return 0;
 
         return super.previewRedeem(shares);
     }
@@ -406,7 +357,7 @@ contract StakedChip is
     function previewWithdraw(
         uint256 assets
     ) public view override(ERC4626Upgradeable, IERC4626) returns (uint256) {
-        if (totalShares() == 0) return type(uint256).max;
+        if (totalSupply() == 0) return type(uint256).max;
 
         return super.previewWithdraw(assets);
     }
@@ -554,36 +505,6 @@ contract StakedChip is
     }
 
     /*------------------------------------------------------------------------*/
-    /* Minter API                                                             */
-    /*------------------------------------------------------------------------*/
-
-    /**
-     * @inheritdoc IMintableBurnable
-     */
-    function mint(
-        address to,
-        uint256 amount
-    ) external whenNotPaused onlyRole(BRIDGE_ADMIN_ROLE) {
-        _mint(to, amount);
-
-        /* Update bridged supply */
-        _getSupplyStorage().bridged -= amount;
-    }
-
-    /**
-     * @inheritdoc IMintableBurnable
-     */
-    function burn(
-        address from,
-        uint256 amount
-    ) external whenNotPaused onlyRole(BRIDGE_ADMIN_ROLE) {
-        _burn(from, amount);
-
-        /* Update bridged supply */
-        _getSupplyStorage().bridged += amount;
-    }
-
-    /*------------------------------------------------------------------------*/
     /* Pause Admin API                                                        */
     /*------------------------------------------------------------------------*/
 
@@ -612,8 +533,7 @@ contract StakedChip is
         bytes4 interfaceId
     ) public view virtual override(AccessControlUpgradeable, ERC165Upgradeable) returns (bool) {
         return interfaceId == type(IERC20).interfaceId || interfaceId == type(IERC4626).interfaceId
-            || interfaceId == type(IStakedChip).interfaceId || interfaceId == type(IMintableBurnable).interfaceId
-            || interfaceId == type(IERC20Permit).interfaceId || interfaceId == type(IERC5267).interfaceId
-            || super.supportsInterface(interfaceId);
+            || interfaceId == type(IStakedChip).interfaceId || interfaceId == type(IERC20Permit).interfaceId
+            || interfaceId == type(IERC5267).interfaceId || super.supportsInterface(interfaceId);
     }
 }

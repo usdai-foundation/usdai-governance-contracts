@@ -319,30 +319,6 @@ contract ChipVotesTest is Test {
         assertEq(chip.getPastTotalSupply(timestamp1), INITIAL_SUPPLY);
     }
 
-    function test__GetPastTotalSupplyAfterBurn() public {
-        // Grant bridge role
-        vm.startPrank(admin);
-        chip.grantRole(chip.BRIDGE_ADMIN_ROLE(), admin);
-        vm.stopPrank();
-
-        uint256 timestamp = 1000;
-        vm.warp(timestamp);
-        uint256 timestamp1 = timestamp;
-
-        timestamp += 100;
-        vm.warp(timestamp);
-        uint256 timestamp2 = timestamp;
-
-        vm.prank(admin);
-        chip.burn(user1, 200 ether);
-
-        timestamp += 1;
-        vm.warp(timestamp);
-
-        assertEq(chip.getPastTotalSupply(timestamp1), INITIAL_SUPPLY);
-        assertEq(chip.getPastTotalSupply(timestamp2), INITIAL_SUPPLY - 200 ether);
-    }
-
     /*------------------------------------------------------------------------*/
     /* delegateBySig Tests                                                    */
     /*------------------------------------------------------------------------*/

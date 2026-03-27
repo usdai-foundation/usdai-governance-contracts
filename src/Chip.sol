@@ -23,7 +23,6 @@ import {
 
 import {IUSDai} from "usdai-contracts/src/interfaces/IUSDai.sol";
 
-import {IMintableBurnable} from "./interfaces/IMintableBurnable.sol";
 import {IChip} from "./interfaces/IChip.sol";
 
 /**
@@ -53,21 +52,9 @@ contract Chip is
     bytes32 public constant REVOKE_DELEGATE_ADMIN_ROLE = keccak256("REVOKE_DELEGATE_ADMIN_ROLE");
 
     /**
-     * @notice Minter role
-     */
-    bytes32 public constant BRIDGE_ADMIN_ROLE = keccak256("BRIDGE_ADMIN_ROLE");
-
-    /**
      * @notice Transfer admin role
      */
     bytes32 public constant TRANSFER_ADMIN_ROLE = keccak256("TRANSFER_ADMIN_ROLE");
-
-    /**
-     * @notice Supply storage location
-     * @dev keccak256(abi.encode(uint256(keccak256("chip.supply")) - 1)) & ~bytes32(uint256(0xff));
-     */
-    bytes32 internal constant SUPPLY_STORAGE_LOCATION =
-        0x88399c6b17428f2fe1607b6829207459421f84a0dfa0548614e1da845ea59300;
 
     /*------------------------------------------------------------------------*/
     /* Immutables                                                             */
@@ -124,16 +111,6 @@ contract Chip is
     /*------------------------------------------------------------------------*/
 
     /**
-     * @notice Helper function to get supply storage
-     * @return $ Supply storage
-     */
-    function _getSupplyStorage() internal pure returns (Supply storage $) {
-        assembly {
-            $.slot := SUPPLY_STORAGE_LOCATION
-        }
-    }
-
-    /**
      * @notice Check if address is blacklisted
      * @param account Address to check
      */
@@ -154,13 +131,6 @@ contract Chip is
         address account
     ) public view returns (bool) {
         return _usdai.isBlacklisted(account);
-    }
-
-    /**
-     * @inheritdoc IChip
-     */
-    function bridgedSupply() external view returns (uint256) {
-        return _getSupplyStorage().bridged;
     }
 
     /*------------------------------------------------------------------------*/
@@ -234,36 +204,6 @@ contract Chip is
     }
 
     /*------------------------------------------------------------------------*/
-    /* Minter API                                                             */
-    /*------------------------------------------------------------------------*/
-
-    /**
-     * @inheritdoc IMintableBurnable
-     */
-    function mint(
-        address to,
-        uint256 amount
-    ) external onlyRole(BRIDGE_ADMIN_ROLE) {
-        _mint(to, amount);
-
-        /* Update bridged supply */
-        _getSupplyStorage().bridged -= amount;
-    }
-
-    /**
-     * @inheritdoc IMintableBurnable
-     */
-    function burn(
-        address from,
-        uint256 amount
-    ) external onlyRole(BRIDGE_ADMIN_ROLE) {
-        _burn(from, amount);
-
-        /* Update bridged supply */
-        _getSupplyStorage().bridged += amount;
-    }
-
-    /*------------------------------------------------------------------------*/
     /* Permissioned API                                                       */
     /*------------------------------------------------------------------------*/
 
@@ -293,8 +233,7 @@ contract Chip is
         bytes4 interfaceId
     ) public view virtual override(AccessControlUpgradeable, ERC165Upgradeable) returns (bool) {
         return interfaceId == type(IERC20).interfaceId || interfaceId == type(IChip).interfaceId
-            || interfaceId == type(IMintableBurnable).interfaceId || interfaceId == type(IVotes).interfaceId
-            || interfaceId == type(IERC20Permit).interfaceId || interfaceId == type(IERC5267).interfaceId
-            || super.supportsInterface(interfaceId);
+            || interfaceId == type(IVotes).interfaceId || interfaceId == type(IERC20Permit).interfaceId
+            || interfaceId == type(IERC5267).interfaceId || super.supportsInterface(interfaceId);
     }
 }

@@ -257,35 +257,6 @@ contract StakedChipUpgradeTest is Test {
         assertTrue(stakedChip.paused());
     }
 
-    function test_UpgradePreservesBridgedSupply() public {
-        bytes32 bridgeRole = keccak256("BRIDGE_ADMIN_ROLE");
-
-        // Setup: deposit and burn
-        vm.prank(admin);
-        stakedChip.grantRole(bridgeRole, admin);
-
-        vm.startPrank(user1);
-        chip.approve(address(stakedChip), 100 ether);
-        uint256 shares = stakedChip.deposit(100 ether, user1);
-        vm.stopPrank();
-
-        vm.prank(admin);
-        stakedChip.burn(user1, shares);
-
-        uint256 bridgedSupplyBefore = stakedChip.bridgedSupply();
-
-        // Upgrade
-        StakedChip newImpl = new StakedChip(address(mockUsdai), address(chip));
-        vm.prank(admin);
-        (bool success,) = stakedChipProxyAdmin.call(
-            abi.encodeWithSignature("upgradeAndCall(address,address,bytes)", address(stakedChip), address(newImpl), "")
-        );
-        assertTrue(success, "Upgrade failed");
-
-        // Verify bridged supply preserved
-        assertEq(stakedChip.bridgedSupply(), bridgedSupplyBefore);
-    }
-
     /*------------------------------------------------------------------------*/
     /* Post-Upgrade Functionality Tests                                       */
     /*------------------------------------------------------------------------*/
