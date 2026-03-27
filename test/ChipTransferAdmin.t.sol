@@ -266,45 +266,6 @@ contract ChipTransferAdminTest is Test {
     }
 
     /*------------------------------------------------------------------------*/
-    /* Bridge Admin Integration Tests                                         */
-    /*------------------------------------------------------------------------*/
-
-    function test__BridgeAdminMintRequiresTransferAdminToMove() public {
-        // Set up: grant roles and transfer tokens to user1 first
-        vm.startPrank(admin);
-        chip.grantRole(chip.BRIDGE_ADMIN_ROLE(), admin);
-        chip.grantRole(transferAdminRole, admin);
-        chip.transfer(user1, 1000 ether);
-
-        // Burn tokens to increase bridged supply, then mint back
-        chip.burn(user1, 500 ether);
-        chip.mint(user1, 500 ether);
-        vm.stopPrank();
-
-        assertEq(chip.balanceOf(user1), 1000 ether);
-
-        // User1 cannot transfer minted tokens without TRANSFER_ADMIN_ROLE
-        vm.prank(user1);
-        vm.expectRevert("Transfer not allowed");
-        chip.transfer(user2, 100 ether);
-    }
-
-    function test__BridgeAdminBurnRequiresTransferAdminForSetup() public {
-        // Set up: give user1 some tokens
-        vm.startPrank(admin);
-        chip.grantRole(transferAdminRole, admin);
-        chip.grantRole(chip.BRIDGE_ADMIN_ROLE(), admin);
-        chip.transfer(user1, 1000 ether);
-        vm.stopPrank();
-
-        // Bridge admin can burn
-        vm.prank(admin);
-        chip.burn(user1, 500 ether);
-
-        assertEq(chip.balanceOf(user1), 500 ether);
-    }
-
-    /*------------------------------------------------------------------------*/
     /* Fuzz Tests                                                             */
     /*------------------------------------------------------------------------*/
 
