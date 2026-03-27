@@ -490,6 +490,7 @@ contract StakedChip is
 
     /**
      * @notice Deposit with slippage protection
+     * @dev Slippage control logic will be implemented at a later stage
      * @param amount Amount of assets to deposit
      * @param receiver Receiver of shares
      * @param minShares Minimum shares to receive
@@ -505,6 +506,7 @@ contract StakedChip is
 
     /**
      * @notice Mint with slippage protection
+     * @dev Slippage control logic will be implemented at a later stage
      * @param shares Amount of shares to mint
      * @param receiver Receiver of shares
      * @param maxAmount Maximum assets to spend
