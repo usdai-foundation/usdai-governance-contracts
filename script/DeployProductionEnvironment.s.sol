@@ -47,7 +47,7 @@ contract DeployProductionEnvironment is Deployer {
     uint256 private constant GOVERNOR_QUORUM_FRACTION = 4;
     uint48 private constant GOVERNOR_VOTING_DELAY = 1 days;
     uint32 private constant GOVERNOR_VOTING_PERIOD = 1 weeks;
-    uint256 private constant GOVERNOR_PROPOSAL_THRESHOLD = 1e6 ether;
+    uint256 private constant GOVERNOR_PROPOSAL_THRESHOLD = 10e6 ether;
 
     function run(
         address deployer,
