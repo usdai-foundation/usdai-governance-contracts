@@ -5,6 +5,8 @@ set -e
 declare -A SCRIPTS=(
     ["deploy"]="script/Deploy.s.sol:Deploy"
     ["deploy-production-environment"]="script/DeployProductionEnvironment.s.sol:DeployProductionEnvironment"
+    ["deploy-home-omnichain-environment"]="script/DeployHomeOmnichainEnvironment.s.sol:DeployHomeOmnichainEnvironment"
+    ["deploy-away-omnichain-environment"]="script/DeployAwayOmnichainEnvironment.s.sol:DeployAwayOmnichainEnvironment"
     ["show"]="script/Show.s.sol:Show"
 )
 
@@ -14,7 +16,8 @@ usage() {
     echo "Commands:"
     echo "  deploy <usdai> <treasury>"
     echo "  deploy-production-environment <deployer> <treasury> <admin>"
-    echo "  deploy-omnichain-environment <deployer> <lz endpoint> <admin>"
+    echo "  deploy-home-omnichain-environment <deployer> <lz endpoint> <admin>"
+    echo "  deploy-away-omnichain-environment <deployer> <lz endpoint> <admin>"
     echo ""
     echo "  show"
 }

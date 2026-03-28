@@ -21,7 +21,7 @@ interface ICreateX {
     ) external payable returns (address newContract);
 }
 
-contract DeployOmnichainEnvironment is Deployer {
+contract DeployAwayOmnichainEnvironment is Deployer {
     ICreateX internal constant CREATEX = ICreateX(0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed);
 
     address internal constant CHIP_ADDRESS = 0x0C1c1C109FE34733fca54b82d7B46B75CFb71F6e;
@@ -72,7 +72,7 @@ contract DeployOmnichainEnvironment is Deployer {
                 abi.encode(
                     address(otokenImpl),
                     deployer,
-                    abi.encodeWithSelector(OToken.initialize.selector, "Staked CHIP", "sCHIP", admin)
+                    abi.encodeWithSelector(OToken.initialize.selector, "Staked Chip", "sCHIP", admin)
                 )
             )
         );
@@ -85,7 +85,7 @@ contract DeployOmnichainEnvironment is Deployer {
         bytes memory oadapterChipCalldata = abi.encodeWithSelector(
             ICreateX.deployCreate3.selector,
             OADAPTER_CHIP_SALT,
-            abi.encodePacked(type(OAdapter).creationCode, abi.encode(CHIP_ADDRESS, lzEndpoint, msg.sender))
+            abi.encodePacked(type(OAdapter).creationCode, abi.encode(CHIP_ADDRESS, lzEndpoint, admin))
         );
 
         // Prepare Create3 Calldata for Staked CHIP OAdapter
@@ -96,7 +96,7 @@ contract DeployOmnichainEnvironment is Deployer {
         bytes memory oadapterStakedChipCalldata = abi.encodeWithSelector(
             ICreateX.deployCreate3.selector,
             OADAPTER_STAKED_CHIP_SALT,
-            abi.encodePacked(type(OAdapter).creationCode, abi.encode(STAKED_CHIP_ADDRESS, lzEndpoint, msg.sender))
+            abi.encodePacked(type(OAdapter).creationCode, abi.encode(STAKED_CHIP_ADDRESS, lzEndpoint, admin))
         );
 
         // Prepare grant role calldata

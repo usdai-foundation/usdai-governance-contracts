@@ -111,6 +111,14 @@ contract Deployer is BaseScript {
         json = stdJson.serialize("", "TimelockController", _deployment.timelock);
         /* Serialize StakedChip */
         json = stdJson.serialize("", "StakedChip", _deployment.stakedChip);
+        /* Serialize OTokenChip */
+        json = stdJson.serialize("", "OTokenChip", _deployment.oTokenChip);
+        /* Serialize OTokenStakedChip */
+        json = stdJson.serialize("", "OTokenStakedChip", _deployment.oTokenStakedChip);
+        /* Serialize OAdapterChip */
+        json = stdJson.serialize("", "OAdapterChip", _deployment.oAdapterChip);
+        /* Serialize OAdapterStakedChip */
+        json = stdJson.serialize("", "OAdapterStakedChip", _deployment.oAdapterStakedChip);
 
         console.log("Writing json to file: %s\n", json);
         vm.writeJson(json, _getJsonFilePath());
@@ -150,6 +158,34 @@ contract Deployer is BaseScript {
             _deployment.stakedChip = stakedChip_;
         } catch {
             console.log("Could not parse StakedChip");
+        }
+
+        /* Deserialize OTokenChip */
+        try vm.parseJsonAddress(json, ".OTokenChip") returns (address oTokenChip_) {
+            _deployment.oTokenChip = oTokenChip_;
+        } catch {
+            console.log("Could not parse OTokenChip");
+        }
+
+        /* Deserialize OTokenStakedChip */
+        try vm.parseJsonAddress(json, ".OTokenStakedChip") returns (address oTokenStakedChip_) {
+            _deployment.oTokenStakedChip = oTokenStakedChip_;
+        } catch {
+            console.log("Could not parse OTokenStakedChip");
+        }
+
+        /* Deserialize OAdapterChip */
+        try vm.parseJsonAddress(json, ".OAdapterChip") returns (address oAdapterChip_) {
+            _deployment.oAdapterChip = oAdapterChip_;
+        } catch {
+            console.log("Could not parse OAdapterChip");
+        }
+
+        /* Deserialize OAdapterStakedChip */
+        try vm.parseJsonAddress(json, ".OAdapterStakedChip") returns (address oAdapterStakedChip_) {
+            _deployment.oAdapterStakedChip = oAdapterStakedChip_;
+        } catch {
+            console.log("Could not parse OAdapterStakedChip");
         }
     }
 }
