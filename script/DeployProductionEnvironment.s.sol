@@ -44,11 +44,11 @@ contract DeployProductionEnvironment is Deployer {
     uint256 private constant TOKEN_SUPPLY = 10e9 ether;
     uint256 private constant TIMELOCK_MIN_DELAY = 3 days;
     string private constant GOVERNOR_NAME = "Chip Governor";
-    uint256 private constant GOVERNOR_QUORUM_FRACTION = 4;
+    uint256 private constant GOVERNOR_QUORUM_FRACTION = 5;
     uint48 private constant GOVERNOR_VOTING_DELAY = 1 days;
     uint32 private constant GOVERNOR_VOTING_PERIOD = 1 weeks;
     uint48 private constant GOVERNOR_VOTE_EXTENSION = 3 days;
-    uint256 private constant GOVERNOR_PROPOSAL_THRESHOLD = 1e6 ether;
+    uint256 private constant GOVERNOR_PROPOSAL_THRESHOLD = 100e6 ether;
 
     function run(
         address deployer,
@@ -75,46 +75,6 @@ contract DeployProductionEnvironment is Deployer {
         /**********************************************************************/
         /* Deployer Calldata */
         /**********************************************************************/
-
-        console.log("Prepare TimelockController calldata...");
-        if (
-            CREATEX.computeCreate3Address(keccak256(abi.encode(deployer, TIMELOCK_CONTROLLER_SALT)))
-                != TIMELOCK_CONTROLLER_ADDRESS
-        ) {
-            revert InvalidParameter();
-        }
-        address[] memory accounts = new address[](1);
-        accounts[0] = CHIP_GOVERNOR_ADDRESS;
-        bytes memory timelockControllerCreate3Calldata = abi.encodeWithSelector(
-            ICreateX.deployCreate3.selector,
-            TIMELOCK_CONTROLLER_SALT,
-            abi.encodePacked(
-                type(TimelockController).creationCode, abi.encode(TIMELOCK_MIN_DELAY, accounts, accounts, admin)
-            )
-        );
-
-        console.log("Prepare ChipGovernor calldata...");
-        if (CREATEX.computeCreate3Address(keccak256(abi.encode(deployer, CHIP_GOVERNOR_SALT))) != CHIP_GOVERNOR_ADDRESS)
-        {
-            revert InvalidParameter();
-        }
-        bytes memory chipGovernorCreate3Calldata = abi.encodeWithSelector(
-            ICreateX.deployCreate3.selector,
-            CHIP_GOVERNOR_SALT,
-            abi.encodePacked(
-                type(ChipGovernor).creationCode,
-                abi.encode(
-                    GOVERNOR_NAME,
-                    IVotes(CHIP_ADDRESS),
-                    TIMELOCK_CONTROLLER_ADDRESS,
-                    GOVERNOR_QUORUM_FRACTION,
-                    GOVERNOR_VOTING_DELAY,
-                    GOVERNOR_VOTING_PERIOD,
-                    GOVERNOR_PROPOSAL_THRESHOLD,
-                    GOVERNOR_VOTE_EXTENSION
-                )
-            )
-        );
 
         console.log("Prepare Chip proxy calldata...");
         if (CREATEX.computeCreate3Address(keccak256(abi.encode(deployer, CHIP_SALT))) != CHIP_ADDRESS) {
@@ -148,19 +108,60 @@ contract DeployProductionEnvironment is Deployer {
             )
         );
 
+        console.log("Prepare TimelockController calldata...");
+        if (
+            CREATEX.computeCreate3Address(keccak256(abi.encode(deployer, TIMELOCK_CONTROLLER_SALT)))
+                != TIMELOCK_CONTROLLER_ADDRESS
+        ) {
+            revert InvalidParameter();
+        }
+        address[] memory accounts = new address[](2);
+        accounts[0] = CHIP_GOVERNOR_ADDRESS;
+        accounts[1] = admin;
+        bytes memory timelockControllerCreate3Calldata = abi.encodeWithSelector(
+            ICreateX.deployCreate3.selector,
+            TIMELOCK_CONTROLLER_SALT,
+            abi.encodePacked(
+                type(TimelockController).creationCode, abi.encode(TIMELOCK_MIN_DELAY, accounts, accounts, address(0x0))
+            )
+        );
+
+        console.log("Prepare ChipGovernor calldata...");
+        if (CREATEX.computeCreate3Address(keccak256(abi.encode(deployer, CHIP_GOVERNOR_SALT))) != CHIP_GOVERNOR_ADDRESS)
+        {
+            revert InvalidParameter();
+        }
+        bytes memory chipGovernorCreate3Calldata = abi.encodeWithSelector(
+            ICreateX.deployCreate3.selector,
+            CHIP_GOVERNOR_SALT,
+            abi.encodePacked(
+                type(ChipGovernor).creationCode,
+                abi.encode(
+                    GOVERNOR_NAME,
+                    IVotes(CHIP_ADDRESS),
+                    TIMELOCK_CONTROLLER_ADDRESS,
+                    GOVERNOR_QUORUM_FRACTION,
+                    GOVERNOR_VOTING_DELAY,
+                    GOVERNOR_VOTING_PERIOD,
+                    GOVERNOR_PROPOSAL_THRESHOLD,
+                    GOVERNOR_VOTE_EXTENSION
+                )
+            )
+        );
+
         console.log("");
         console.log("from deployer multisig");
         console.log("");
 
         console.log("target", address(CREATEX));
-        console.log("TimelockController calldata");
-        console.logBytes(timelockControllerCreate3Calldata);
-        console.log("ChipGovernor calldata");
-        console.logBytes(chipGovernorCreate3Calldata);
         console.log("Chip proxy calldata");
         console.logBytes(chipProxyCreate3Calldata);
         console.log("Staked Chip proxy calldata");
         console.logBytes(stakedChipProxyCreate3Calldata);
+        console.log("TimelockController calldata");
+        console.logBytes(timelockControllerCreate3Calldata);
+        console.log("ChipGovernor calldata");
+        console.logBytes(chipGovernorCreate3Calldata);
         console.log("");
 
         /**********************************************************************/
@@ -169,16 +170,6 @@ contract DeployProductionEnvironment is Deployer {
 
         console.log("from admin multisig");
         console.log("");
-
-        console.log("Grant TimelockController CANCELLER_ROLE to admin...");
-        console.log("target", TIMELOCK_CONTROLLER_ADDRESS);
-        console.log("calldata");
-        console.logBytes(abi.encodeWithSelector(IAccessControl.grantRole.selector, keccak256("CANCELLER_ROLE"), admin));
-
-        console.log("Renouncing TimelockController DEFAULT_ADMIN_ROLE from admin...");
-        console.log("target", TIMELOCK_CONTROLLER_ADDRESS);
-        console.log("calldata");
-        console.logBytes(abi.encodeWithSelector(IAccessControl.renounceRole.selector, 0x0, admin));
 
         console.log("Grant Chip DEFAULT_ADMIN_ROLE to TimelockController...");
         console.log("target", CHIP_ADDRESS);
