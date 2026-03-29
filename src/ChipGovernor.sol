@@ -16,6 +16,9 @@ import {GovernorSettings} from "openzeppelin-contracts/contracts/governance/exte
 import {
     GovernorPreventLateQuorum
 } from "openzeppelin-contracts/contracts/governance/extensions/GovernorPreventLateQuorum.sol";
+import {
+    GovernorProposalGuardian
+} from "openzeppelin-contracts/contracts/governance/extensions/GovernorProposalGuardian.sol";
 import {IVotes} from "openzeppelin-contracts/contracts/governance/utils/IVotes.sol";
 import {TimelockController} from "openzeppelin-contracts/contracts/governance/TimelockController.sol";
 
@@ -30,7 +33,8 @@ contract ChipGovernor is
     GovernorVotesQuorumFraction,
     GovernorTimelockControl,
     GovernorSettings,
-    GovernorPreventLateQuorum
+    GovernorPreventLateQuorum,
+    GovernorProposalGuardian
 {
     /*------------------------------------------------------------------------*/
     /* Chip Governor Constructor                                              */
@@ -155,5 +159,15 @@ contract ChipGovernor is
         uint256 proposalId
     ) public view override(Governor, GovernorPreventLateQuorum) returns (uint256) {
         return super.proposalDeadline(proposalId);
+    }
+
+    /**
+     * @inheritdoc GovernorProposalGuardian
+     */
+    function _validateCancel(
+        uint256 proposalId,
+        address caller
+    ) internal view override(Governor, GovernorProposalGuardian) returns (bool) {
+        return super._validateCancel(proposalId, caller);
     }
 }
