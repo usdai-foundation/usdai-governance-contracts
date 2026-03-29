@@ -47,6 +47,7 @@ contract DeployProductionEnvironment is Deployer {
     uint256 private constant GOVERNOR_QUORUM_FRACTION = 4;
     uint48 private constant GOVERNOR_VOTING_DELAY = 1 days;
     uint32 private constant GOVERNOR_VOTING_PERIOD = 1 weeks;
+    uint48 private constant GOVERNOR_VOTE_EXTENSION = 3 days;
     uint256 private constant GOVERNOR_PROPOSAL_THRESHOLD = 1e6 ether;
 
     function run(
@@ -109,7 +110,8 @@ contract DeployProductionEnvironment is Deployer {
                     GOVERNOR_QUORUM_FRACTION,
                     GOVERNOR_VOTING_DELAY,
                     GOVERNOR_VOTING_PERIOD,
-                    GOVERNOR_PROPOSAL_THRESHOLD
+                    GOVERNOR_PROPOSAL_THRESHOLD,
+                    GOVERNOR_VOTE_EXTENSION
                 )
             )
         );

@@ -23,6 +23,7 @@ contract Deploy is Deployer {
     uint48 private constant GOVERNOR_VOTING_DELAY = 1 days;
     uint32 private constant GOVERNOR_VOTING_PERIOD = 1 weeks;
     uint256 private constant GOVERNOR_PROPOSAL_THRESHOLD = 1e6 ether;
+    uint48 private constant GOVERNOR_VOTE_EXTENSION = 3 days;
 
     function run(
         address usdaiAddress,
@@ -58,7 +59,8 @@ contract Deploy is Deployer {
             GOVERNOR_QUORUM_FRACTION,
             GOVERNOR_VOTING_DELAY,
             GOVERNOR_VOTING_PERIOD,
-            GOVERNOR_PROPOSAL_THRESHOLD
+            GOVERNOR_PROPOSAL_THRESHOLD,
+            GOVERNOR_VOTE_EXTENSION
         );
 
         console.log("Deploying StakedChip implementation...");
