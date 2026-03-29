@@ -13,6 +13,9 @@ import {
     GovernorTimelockControl
 } from "openzeppelin-contracts/contracts/governance/extensions/GovernorTimelockControl.sol";
 import {GovernorSettings} from "openzeppelin-contracts/contracts/governance/extensions/GovernorSettings.sol";
+import {
+    GovernorPreventLateQuorum
+} from "openzeppelin-contracts/contracts/governance/extensions/GovernorPreventLateQuorum.sol";
 import {IVotes} from "openzeppelin-contracts/contracts/governance/utils/IVotes.sol";
 import {TimelockController} from "openzeppelin-contracts/contracts/governance/TimelockController.sol";
 
@@ -26,7 +29,8 @@ contract ChipGovernor is
     GovernorCountingSimple,
     GovernorVotesQuorumFraction,
     GovernorTimelockControl,
-    GovernorSettings
+    GovernorSettings,
+    GovernorPreventLateQuorum
 {
     /*------------------------------------------------------------------------*/
     /* Chip Governor Constructor                                              */
@@ -41,6 +45,7 @@ contract ChipGovernor is
      * @param votingDelay_ Voting delay (EIP-6372 clock units)
      * @param votingPeriod_ Voting period (EIP-6372 clock units)
      * @param proposalThreshold_ Proposal threshold (votes)
+     * @param voteExtension_ Vote extension (EIP-6372 clock units)
      */
     constructor(
         string memory governorName_,
@@ -49,13 +54,15 @@ contract ChipGovernor is
         uint256 quorumFraction_,
         uint48 votingDelay_,
         uint32 votingPeriod_,
-        uint256 proposalThreshold_
+        uint256 proposalThreshold_,
+        uint48 voteExtension_
     )
         Governor(governorName_)
         GovernorVotes(token_)
         GovernorTimelockControl(timelock_)
         GovernorVotesQuorumFraction(quorumFraction_)
         GovernorSettings(votingDelay_, votingPeriod_, proposalThreshold_)
+        GovernorPreventLateQuorum(voteExtension_)
     {}
 
     /*------------------------------------------------------------------------*/
@@ -130,5 +137,23 @@ contract ChipGovernor is
      */
     function _executor() internal view override(Governor, GovernorTimelockControl) returns (address) {
         return super._executor();
+    }
+
+    /**
+     * @inheritdoc GovernorPreventLateQuorum
+     */
+    function _tallyUpdated(
+        uint256 proposalId
+    ) internal override(Governor, GovernorPreventLateQuorum) {
+        return super._tallyUpdated(proposalId);
+    }
+
+    /**
+     * @inheritdoc GovernorPreventLateQuorum
+     */
+    function proposalDeadline(
+        uint256 proposalId
+    ) public view override(Governor, GovernorPreventLateQuorum) returns (uint256) {
+        return super.proposalDeadline(proposalId);
     }
 }
