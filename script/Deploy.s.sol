@@ -19,10 +19,10 @@ contract Deploy is Deployer {
     uint256 private constant TOKEN_SUPPLY = 10e9 ether;
     uint256 private constant TIMELOCK_MIN_DELAY = 3 days;
     string private constant GOVERNOR_NAME = "ChipGovernor";
-    uint256 private constant GOVERNOR_QUORUM_FRACTION = 4;
+    uint256 private constant GOVERNOR_QUORUM_FRACTION = 5;
     uint48 private constant GOVERNOR_VOTING_DELAY = 1 days;
     uint32 private constant GOVERNOR_VOTING_PERIOD = 1 weeks;
-    uint256 private constant GOVERNOR_PROPOSAL_THRESHOLD = 1e6 ether;
+    uint256 private constant GOVERNOR_PROPOSAL_THRESHOLD = 100e6 ether;
     uint48 private constant GOVERNOR_VOTE_EXTENSION = 3 days;
 
     function run(
