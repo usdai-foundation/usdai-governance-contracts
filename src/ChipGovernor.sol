@@ -24,7 +24,7 @@ import {TimelockController} from "openzeppelin-contracts/contracts/governance/Ti
 
 /**
  * @title Chip Governor
- * @author Permian Labs
+ * @author USD.AI Foundation
  */
 contract ChipGovernor is
     Governor,

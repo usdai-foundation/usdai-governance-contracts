@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: MIT
 pragma solidity 0.8.33;
 
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
@@ -16,7 +16,7 @@ import {IMintableBurnable} from "../interfaces/IMintableBurnable.sol";
 
 /**
  * @title Omnichain Token
- * @author Permian Labs
+ * @author USD.AI Foundation
  */
 contract OToken is
     IMintableBurnable,

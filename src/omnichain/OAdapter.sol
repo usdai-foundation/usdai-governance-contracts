@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: MIT
 pragma solidity 0.8.33;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
@@ -11,7 +11,7 @@ import {IMintableBurnable} from "../interfaces/IMintableBurnable.sol";
 
 /**
  * @title Omnichain Adapter
- * @author Permian Labs
+ * @author USD.AI Foundation
  */
 contract OAdapter is OFTCore, RateLimiter {
     /*------------------------------------------------------------------------*/

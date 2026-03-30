@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: MIT
 pragma solidity 0.8.33;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -10,7 +10,7 @@ import {RateLimiter} from "@layerzerolabs/lz-evm-oapp-v2/contracts/oapp/utils/Ra
 
 /**
  * @title Omnichain Lock Adapter
- * @author Permian Labs
+ * @author USD.AI Foundation
  */
 contract OLockAdapter is OFTAdapter, RateLimiter {
     using SafeERC20 for IERC20;

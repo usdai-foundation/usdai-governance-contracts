@@ -15,7 +15,7 @@ import {Chip} from "../src/Chip.sol";
 
 /**
  * @title Base test setup
- * @author Permian Labs
+ * @author USD.AI Foundation
  * @author Modified from https://github.com/PaulRBerg/prb-proxy/blob/main/test/Base.t.sol
  *
  * @dev Sets up users and token contracts

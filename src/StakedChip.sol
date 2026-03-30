@@ -33,7 +33,7 @@ import {IChip} from "./interfaces/IChip.sol";
 /**
  * @title StakedChip
  * @notice ERC4626 vault for staking CHIP
- * @author Permian Labs
+ * @author USD.AI Foundation
  */
 contract StakedChip is
     ERC165Upgradeable,

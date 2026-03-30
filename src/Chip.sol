@@ -27,7 +27,7 @@ import {IChip} from "./interfaces/IChip.sol";
 
 /**
  * @title Chip ERC20
- * @author Permian Labs
+ * @author USD.AI Foundation
  */
 contract Chip is
     ERC165Upgradeable,
