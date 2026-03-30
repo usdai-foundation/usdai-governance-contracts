@@ -87,12 +87,12 @@ contract Chip is
 
     /**
      * @notice Chip ERC20 initializer
-     * @param totalSupply Total supply
+     * @param initialSupply Initial supply
      * @param treasury Treasury address (receives initial supply)
      * @param admin Admin address
      */
     function initialize(
-        uint256 totalSupply,
+        uint256 initialSupply,
         address treasury,
         address admin
     ) external initializer {
@@ -101,7 +101,7 @@ contract Chip is
         __ERC20Votes_init();
         __AccessControl_init();
 
-        _mint(treasury, totalSupply);
+        _mint(treasury, initialSupply);
 
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
     }
