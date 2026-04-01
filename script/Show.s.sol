@@ -29,6 +29,12 @@ contract Show is Deployer {
             address(uint160(uint256(vm.load(_deployment.stakedChip, ERC1967Utils.IMPLEMENTATION_SLOT))))
         );
 
+        console.log("OAdapterChip:         %s", _deployment.oAdapterChip);
+        console.log("OAdapterStakedChip:   %s", _deployment.oAdapterStakedChip);
+
+        console.log("OTokenChip:           %s", _deployment.oTokenChip);
+        console.log("OTokenStakedChip:     %s", _deployment.oTokenStakedChip);
+
         console.log("\nPrinting deployments completed");
     }
 }
