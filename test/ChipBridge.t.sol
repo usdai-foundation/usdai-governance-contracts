@@ -170,13 +170,9 @@ contract ChipBridgeTest is TestHelperOz5 {
         oApps[1] = address(oAdapter);
         this.wireOApps(oApps);
 
-        /* Grant OLockAdapter TRANSFER_ADMIN_ROLE on Chip (hub: lock/unlock), and
-           grant admin TRANSFER_ADMIN_ROLE to distribute initial tokens */
-        vm.startPrank(admin);
-        chip.grantRole(chip.TRANSFER_ADMIN_ROLE(), address(oLockAdapter));
-        chip.grantRole(chip.TRANSFER_ADMIN_ROLE(), admin);
+        /* Transfer Chip to user */
+        vm.prank(admin);
         chip.transfer(userHub, INITIAL_USER_BALANCE);
-        vm.stopPrank();
     }
 
     /*------------------------------------------------------------------------*/

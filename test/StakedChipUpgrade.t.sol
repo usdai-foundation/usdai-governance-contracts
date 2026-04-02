@@ -90,12 +90,8 @@ contract StakedChipUpgradeTest is Test {
 
         vm.stopPrank();
 
-        // Grant TRANSFER_ADMIN_ROLE to admin, users, and StakedChip contract
+        // Transfer Chip to users
         vm.startPrank(admin);
-        chip.grantRole(chip.TRANSFER_ADMIN_ROLE(), admin);
-        chip.grantRole(chip.TRANSFER_ADMIN_ROLE(), user1);
-        chip.grantRole(chip.TRANSFER_ADMIN_ROLE(), user2);
-        chip.grantRole(chip.TRANSFER_ADMIN_ROLE(), address(stakedChip));
         assertTrue(chip.transfer(user1, 1000 ether));
         assertTrue(chip.transfer(user2, 1000 ether));
         vm.stopPrank();

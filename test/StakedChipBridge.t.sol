@@ -33,10 +33,6 @@ import {MockUSDai} from "./mocks/MockUSDai.sol";
  * @dev Architecture:
  *   Hub:   StakedChip (ERC4626 vault over CHIP) + OLockAdapter (locks/unlocks sCHIP)
  *   Spoke: OToken (sCHIP representation) + OAdapter (mints/burns OToken)
- *
- * @dev Key difference from ChipBridge: StakedChip has no TRANSFER_ADMIN_ROLE gate, so
- *   OLockAdapter requires no special role on the StakedChip contract. The underlying CHIP
- *   remains in the vault throughout bridging — only sCHIP shares move cross-chain.
  */
 contract StakedChipBridgeTest is TestHelperOz5 {
     using OptionsBuilder for bytes;
@@ -158,8 +154,7 @@ contract StakedChipBridgeTest is TestHelperOz5 {
         RateLimiter.RateLimitConfig[] memory spokeRateLimits = new RateLimiter.RateLimitConfig[](1);
         spokeRateLimits[0] = RateLimiter.RateLimitConfig({dstEid: hubEid, limit: RATE_LIMIT, window: 1 days});
 
-        /* Deploy hub OLockAdapter wrapping StakedChip.
-           No TRANSFER_ADMIN_ROLE needed: StakedChip only enforces the USDai blacklist on transfers. */
+        /* Deploy hub OLockAdapter wrapping StakedChip. */
         oLockAdapter = OLockAdapter(
             _deployOApp(
                 type(OLockAdapter).creationCode,
@@ -189,7 +184,7 @@ contract StakedChipBridgeTest is TestHelperOz5 {
                 address(oTokenImpl),
                 "" // No additional initialization data
             );
-        vm.startPrank(admin);
+        vm.stopPrank();
 
         /* Wire OLockAdapter <-> OAdapter */
         address[] memory oApps = new address[](2);
@@ -197,13 +192,9 @@ contract StakedChipBridgeTest is TestHelperOz5 {
         oApps[1] = address(oAdapter);
         this.wireOApps(oApps);
 
-        /* Set up Chip roles and distribute CHIP to users.
-           StakedChip needs TRANSFER_ADMIN_ROLE to accept CHIP deposits from users. */
-        vm.startPrank(admin);
-        chip.grantRole(chip.TRANSFER_ADMIN_ROLE(), admin);
-        chip.grantRole(chip.TRANSFER_ADMIN_ROLE(), address(stakedChip));
+        /* Transfer Chip to user */
+        vm.prank(admin);
         chip.transfer(userHub, CHIP_PER_USER);
-        vm.stopPrank();
 
         /* userHub deposits CHIP into StakedChip to receive sCHIP shares */
         vm.startPrank(userHub);

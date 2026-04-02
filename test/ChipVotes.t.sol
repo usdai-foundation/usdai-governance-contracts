@@ -67,12 +67,8 @@ contract ChipVotesTest is Test {
 
         vm.stopPrank();
 
-        // Grant TRANSFER_ADMIN_ROLE and transfer tokens to test users
+        // Transfer Chip to users
         vm.startPrank(admin);
-        chip.grantRole(chip.TRANSFER_ADMIN_ROLE(), admin);
-        chip.grantRole(chip.TRANSFER_ADMIN_ROLE(), user1);
-        chip.grantRole(chip.TRANSFER_ADMIN_ROLE(), user2);
-        chip.grantRole(chip.TRANSFER_ADMIN_ROLE(), user3);
         chip.transfer(user1, 1000 ether);
         chip.transfer(user2, 1000 ether);
         chip.transfer(user3, 500 ether);

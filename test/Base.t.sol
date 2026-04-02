@@ -69,13 +69,6 @@ abstract contract BaseTest is Test {
         vm.prank(proxyAdminAddr);
         (bool success,) = proxyAdmin.call(abi.encodeWithSignature("transferOwnership(address)", users.deployer));
         require(success, "Failed to transfer ProxyAdmin ownership");
-
-        // Grant TRANSFER_ADMIN_ROLE to all test users (from the contract admin, not proxy admin)
-        vm.startPrank(users.deployer);
-        chip.grantRole(chip.TRANSFER_ADMIN_ROLE(), users.deployer);
-        chip.grantRole(chip.TRANSFER_ADMIN_ROLE(), users.user1);
-        chip.grantRole(chip.TRANSFER_ADMIN_ROLE(), users.user2);
-        vm.stopPrank();
     }
 
     function createUser(
