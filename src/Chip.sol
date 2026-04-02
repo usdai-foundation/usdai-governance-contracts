@@ -51,11 +51,6 @@ contract Chip is
      */
     bytes32 public constant REVOKE_DELEGATE_ADMIN_ROLE = keccak256("REVOKE_DELEGATE_ADMIN_ROLE");
 
-    /**
-     * @notice Transfer admin role
-     */
-    bytes32 public constant TRANSFER_ADMIN_ROLE = keccak256("TRANSFER_ADMIN_ROLE");
-
     /*------------------------------------------------------------------------*/
     /* Immutables                                                             */
     /*------------------------------------------------------------------------*/
@@ -176,12 +171,6 @@ contract Chip is
         address to,
         uint256 value
     ) internal override(ERC20Upgradeable, ERC20VotesUpgradeable) {
-        /* Check if transfer is allowed */
-        require(
-            totalSupply() == 0 || hasRole(TRANSFER_ADMIN_ROLE, msg.sender) || block.timestamp > 1776773700,
-            "Transfer not allowed"
-        );
-
         _isBlacklisted(msg.sender);
         _isBlacklisted(from);
         _isBlacklisted(to);
