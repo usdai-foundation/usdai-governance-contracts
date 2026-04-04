@@ -27,13 +27,13 @@ contract OToken is
     MulticallUpgradeable
 {
     /*------------------------------------------------------------------------*/
-    /* Constants */
+    /* Immutable State */
     /*------------------------------------------------------------------------*/
 
     /**
-     * @notice Minter role
+     * @notice OAdapter address
      */
-    bytes32 public constant BRIDGE_ADMIN_ROLE = keccak256("BRIDGE_ADMIN_ROLE");
+    address private immutable _oAdapter;
 
     /*------------------------------------------------------------------------*/
     /* Constructor */
@@ -41,9 +41,14 @@ contract OToken is
 
     /**
      * @notice Omnichain Token Constructor
+     * @param oAdapter_ OAdapter address
      */
-    constructor() {
+    constructor(
+        address oAdapter_
+    ) {
         _disableInitializers();
+
+        _oAdapter = oAdapter_;
     }
 
     /*------------------------------------------------------------------------*/
@@ -71,6 +76,18 @@ contract OToken is
     }
 
     /*------------------------------------------------------------------------*/
+    /* Modifiers                                                              */
+    /*------------------------------------------------------------------------*/
+
+    /**
+     * @notice Only OAdapter modifier
+     */
+    modifier onlyOAdapter() {
+        require(msg.sender == _oAdapter, "Not authorized");
+        _;
+    }
+
+    /*------------------------------------------------------------------------*/
     /* Minter API */
     /*------------------------------------------------------------------------*/
 
@@ -80,7 +97,7 @@ contract OToken is
     function mint(
         address to,
         uint256 amount
-    ) external onlyRole(BRIDGE_ADMIN_ROLE) nonReentrant {
+    ) external onlyOAdapter nonReentrant {
         _mint(to, amount);
     }
 
@@ -90,7 +107,7 @@ contract OToken is
     function burn(
         address from,
         uint256 amount
-    ) external onlyRole(BRIDGE_ADMIN_ROLE) nonReentrant {
+    ) external onlyOAdapter nonReentrant {
         _burn(from, amount);
     }
 }

@@ -10,6 +10,11 @@ import {RateLimiter} from "@layerzerolabs/lz-evm-oapp-v2/contracts/oapp/utils/Ra
 import {
     TransparentUpgradeableProxy
 } from "openzeppelin-contracts/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import {ProxyAdmin} from "openzeppelin-contracts/contracts/proxy/transparent/ProxyAdmin.sol";
+import {ERC1967Utils} from "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Utils.sol";
+import {
+    ITransparentUpgradeableProxy
+} from "openzeppelin-contracts/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {ERC1967Proxy} from "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 import {Chip} from "../src/Chip.sol";
@@ -110,7 +115,7 @@ contract ChipBridgeTest is TestHelperOz5 {
         vm.stopPrank();
 
         /* Deploy spoke OToken (admin holds DEFAULT_ADMIN_ROLE on OToken) */
-        OToken oTokenImpl = new OToken();
+        OToken oTokenImpl = new OToken(address(0));
         oToken = OToken(
             address(
                 new TransparentUpgradeableProxy(
@@ -144,16 +149,26 @@ contract ChipBridgeTest is TestHelperOz5 {
         );
         oAdapter.setRateLimits(spokeRateLimits);
 
+        /* Upgrade OToken to use OAdapter */
+        vm.startPrank(admin);
+        oTokenImpl = new OToken(address(oAdapter));
+
+        /* Lookup proxy admin from EIP-1967 storage slot */
+        address proxyAdmin = address(uint160(uint256(vm.load(address(oToken), ERC1967Utils.ADMIN_SLOT))));
+
+        ProxyAdmin(proxyAdmin)
+            .upgradeAndCall(
+                ITransparentUpgradeableProxy(address(oToken)),
+                address(oTokenImpl),
+                "" // No additional initialization data
+            );
+        vm.stopPrank();
+
         /* Wire OLockAdapter <-> OAdapter */
         address[] memory oApps = new address[](2);
         oApps[0] = address(oLockAdapter);
         oApps[1] = address(oAdapter);
         this.wireOApps(oApps);
-
-        /* Grant OAdapter BRIDGE_ADMIN_ROLE on OToken (spoke: mint/burn) */
-        vm.startPrank(admin);
-        oToken.grantRole(oToken.BRIDGE_ADMIN_ROLE(), address(oAdapter));
-        vm.stopPrank();
 
         /* Grant OLockAdapter TRANSFER_ADMIN_ROLE on Chip (hub: lock/unlock), and
            grant admin TRANSFER_ADMIN_ROLE to distribute initial tokens */
@@ -398,12 +413,6 @@ contract ChipBridgeTest is TestHelperOz5 {
 
         /* Try to send more than the rate limit back */
         uint256 tokensToSend = RATE_LIMIT + 1e12;
-
-        /* Mint extra OToken directly for the test */
-        vm.startPrank(admin);
-        oToken.grantRole(oToken.BRIDGE_ADMIN_ROLE(), admin);
-        oToken.mint(userSpoke, tokensToSend - bridgeAmount);
-        vm.stopPrank();
 
         SendParam memory sendToHub = _buildSendParam(hubEid, userHub, tokensToSend);
         MessagingFee memory feeToHub = oAdapter.quoteSend(sendToHub, false);

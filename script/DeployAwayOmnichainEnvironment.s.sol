@@ -41,7 +41,8 @@ contract DeployAwayOmnichainEnvironment is Deployer {
         address admin
     ) public broadcast useDeployment {
         // Deploy OToken implemetation
-        OToken otokenImpl = new OToken();
+        OToken otokenChipImpl = new OToken(OADAPTER_CHIP_ADDRESS);
+        OToken otokenStakedChipImpl = new OToken(OADAPTER_STAKED_CHIP_ADDRESS);
 
         // Prepare Create3 Calldata for OToken CHIP
         if (CREATEX.computeCreate3Address(keccak256(abi.encode(deployer, CHIP_SALT))) != CHIP_ADDRESS) {
@@ -53,7 +54,7 @@ contract DeployAwayOmnichainEnvironment is Deployer {
             abi.encodePacked(
                 type(TransparentUpgradeableProxy).creationCode,
                 abi.encode(
-                    address(otokenImpl),
+                    address(otokenChipImpl),
                     deployer,
                     abi.encodeWithSelector(OToken.initialize.selector, "Chip", "CHIP", admin)
                 )
@@ -70,7 +71,7 @@ contract DeployAwayOmnichainEnvironment is Deployer {
             abi.encodePacked(
                 type(TransparentUpgradeableProxy).creationCode,
                 abi.encode(
-                    address(otokenImpl),
+                    address(otokenStakedChipImpl),
                     deployer,
                     abi.encodeWithSelector(OToken.initialize.selector, "Staked Chip", "sCHIP", admin)
                 )
@@ -99,14 +100,6 @@ contract DeployAwayOmnichainEnvironment is Deployer {
             abi.encodePacked(type(OAdapter).creationCode, abi.encode(STAKED_CHIP_ADDRESS, lzEndpoint, admin))
         );
 
-        // Prepare grant role calldata
-        bytes memory grantRoleChipCalldata = abi.encodeWithSelector(
-            IAccessControl.grantRole.selector, keccak256(bytes("BRIDGE_ADMIN_ROLE")), OADAPTER_CHIP_ADDRESS
-        );
-        bytes memory grantRoleStakedChipCalldata = abi.encodeWithSelector(
-            IAccessControl.grantRole.selector, keccak256(bytes("BRIDGE_ADMIN_ROLE")), OADAPTER_STAKED_CHIP_ADDRESS
-        );
-
         // Print calldata
         console.log("from deployer multisig");
         console.log("target", address(CREATEX));
@@ -119,14 +112,6 @@ contract DeployAwayOmnichainEnvironment is Deployer {
         console.log("OAdapter Staked CHIP calldata");
         console.logBytes(oadapterStakedChipCalldata);
         console.log("");
-        console.log("from admin multisig");
-        console.log("target", CHIP_ADDRESS);
-        console.log("Grant Bridge Admin Role CHIP calldata");
-        console.logBytes(grantRoleChipCalldata);
-        console.log("");
-        console.log("target", STAKED_CHIP_ADDRESS);
-        console.log("Grant Bridge Admin Role Staked CHIP calldata");
-        console.logBytes(grantRoleStakedChipCalldata);
 
         // Log deployment
         _deployment.oTokenChip = CHIP_ADDRESS;
