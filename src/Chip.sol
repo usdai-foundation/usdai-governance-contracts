@@ -177,7 +177,10 @@ contract Chip is
         uint256 value
     ) internal override(ERC20Upgradeable, ERC20VotesUpgradeable) {
         /* Check if transfer is allowed */
-        require(totalSupply() == 0 || hasRole(TRANSFER_ADMIN_ROLE, msg.sender), "Transfer not allowed");
+        require(
+            totalSupply() == 0 || hasRole(TRANSFER_ADMIN_ROLE, msg.sender) || block.timestamp > 1776773700,
+            "Transfer not allowed"
+        );
 
         _isBlacklisted(msg.sender);
         _isBlacklisted(from);

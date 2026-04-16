@@ -194,6 +194,28 @@ contract ChipTransferAdminTest is Test {
     }
 
     /*------------------------------------------------------------------------*/
+    /* Transfer Success Tests - After transfer lock expiration               */
+    /*------------------------------------------------------------------------*/
+
+    function test__UserCanTransferAfterTransferLockExpiration() public {
+        vm.startPrank(admin);
+        chip.grantRole(transferAdminRole, admin);
+        chip.transfer(user1, 1000 ether);
+        vm.stopPrank();
+
+        assertEq(chip.balanceOf(user1), 1000 ether);
+        assertEq(chip.balanceOf(user2), 0);
+
+        vm.warp(1776773700 + 1);
+
+        vm.prank(user1);
+        chip.transfer(user2, 500 ether);
+
+        assertEq(chip.balanceOf(user1), 500 ether);
+        assertEq(chip.balanceOf(user2), 500 ether);
+    }
+
+    /*------------------------------------------------------------------------*/
     /* Role Management Tests                                                  */
     /*------------------------------------------------------------------------*/
 
