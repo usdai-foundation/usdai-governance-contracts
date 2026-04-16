@@ -1,3 +1,6 @@
+* Chip v1.2 - TBD
+    * Remove transfer lock logic.
+
 * OToken v1.1 - TBD
     * Replace `BRIDGE_ADMIN_ROLE` with immutable address.
     * Add `pause()` and `unpause()` APIs.
