@@ -7,6 +7,8 @@ declare -A SCRIPTS=(
     ["deploy-production-environment"]="script/DeployProductionEnvironment.s.sol:DeployProductionEnvironment"
     ["deploy-home-omnichain-environment"]="script/DeployHomeOmnichainEnvironment.s.sol:DeployHomeOmnichainEnvironment"
     ["deploy-away-omnichain-environment"]="script/DeployAwayOmnichainEnvironment.s.sol:DeployAwayOmnichainEnvironment"
+    ["upgrade-chip"]="script/UpgradeChip.s.sol:UpgradeChip"
+    ["upgrade-staked-chip"]="script/UpgradeStakedChip.s.sol:UpgradeStakedChip"
     ["oadapter-set-rate-limits"]="script/OAdapterSetRateLimits.s.sol:OAdapterSetRateLimits"
     ["show"]="script/Show.s.sol:Show"
 )
@@ -19,6 +21,9 @@ usage() {
     echo "  deploy-production-environment <deployer> <treasury> <admin>"
     echo "  deploy-home-omnichain-environment <deployer> <lz endpoint> <admin>"
     echo "  deploy-away-omnichain-environment <deployer> <lz endpoint> <admin>"
+    echo ""
+    echo "  upgrade-chip <usdai>"
+    echo "  upgrade-staked-chip <usdai>"
     echo ""
     echo "  oadapter-set-rate-limits <oadapter> <dst eids> <limit> <window>"
     echo ""
