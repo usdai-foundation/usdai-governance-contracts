@@ -9,6 +9,7 @@ declare -A SCRIPTS=(
     ["deploy-away-omnichain-environment"]="script/DeployAwayOmnichainEnvironment.s.sol:DeployAwayOmnichainEnvironment"
     ["upgrade-chip"]="script/UpgradeChip.s.sol:UpgradeChip"
     ["upgrade-staked-chip"]="script/UpgradeStakedChip.s.sol:UpgradeStakedChip"
+    ["upgrade-otokens"]="script/UpgradeOTokens.s.sol:UpgradeOTokens"
     ["oadapter-set-rate-limits"]="script/OAdapterSetRateLimits.s.sol:OAdapterSetRateLimits"
     ["show"]="script/Show.s.sol:Show"
 )
@@ -24,6 +25,7 @@ usage() {
     echo ""
     echo "  upgrade-chip <usdai>"
     echo "  upgrade-staked-chip <usdai>"
+    echo "  upgrade-otokens"
     echo ""
     echo "  oadapter-set-rate-limits <oadapter> <dst eids> <limit> <window>"
     echo ""
