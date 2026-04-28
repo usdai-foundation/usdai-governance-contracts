@@ -11,6 +11,7 @@ import {
     AccessControlUpgradeable
 } from "openzeppelin-contracts-upgradeable/contracts/access/AccessControlUpgradeable.sol";
 import {MulticallUpgradeable} from "openzeppelin-contracts-upgradeable/contracts/utils/MulticallUpgradeable.sol";
+import {PausableUpgradeable} from "openzeppelin-contracts-upgradeable/contracts/utils/PausableUpgradeable.sol";
 
 import {IMintableBurnable} from "../interfaces/IMintableBurnable.sol";
 
@@ -24,7 +25,8 @@ contract OToken is
     ERC20PermitUpgradeable,
     ReentrancyGuardTransient,
     AccessControlUpgradeable,
-    MulticallUpgradeable
+    MulticallUpgradeable,
+    PausableUpgradeable
 {
     /*------------------------------------------------------------------------*/
     /* Constants                                                              */
@@ -34,6 +36,11 @@ contract OToken is
      * @notice Implementation version
      */
     string public constant IMPLEMENTATION_VERSION = "1.1";
+
+    /**
+     * @notice Pause admin role
+     */
+    bytes32 public constant PAUSE_ADMIN_ROLE = keccak256("PAUSE_ADMIN_ROLE");
 
     /*------------------------------------------------------------------------*/
     /* Immutable State */
@@ -79,6 +86,7 @@ contract OToken is
         __ERC20Permit_init(name_);
         __Multicall_init();
         __AccessControl_init();
+        __Pausable_init();
 
         /* Grant roles */
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
@@ -106,7 +114,7 @@ contract OToken is
     function mint(
         address to,
         uint256 amount
-    ) external onlyOAdapter nonReentrant {
+    ) external whenNotPaused onlyOAdapter nonReentrant {
         _mint(to, amount);
     }
 
@@ -116,7 +124,25 @@ contract OToken is
     function burn(
         address from,
         uint256 amount
-    ) external onlyOAdapter nonReentrant {
+    ) external whenNotPaused onlyOAdapter nonReentrant {
         _burn(from, amount);
+    }
+
+    /*------------------------------------------------------------------------*/
+    /* Pause Admin API */
+    /*------------------------------------------------------------------------*/
+
+    /**
+     * @notice Pause the contract
+     */
+    function pause() external onlyRole(PAUSE_ADMIN_ROLE) {
+        _pause();
+    }
+
+    /**
+     * @notice Unpause the contract
+     */
+    function unpause() external onlyRole(PAUSE_ADMIN_ROLE) {
+        _unpause();
     }
 }
